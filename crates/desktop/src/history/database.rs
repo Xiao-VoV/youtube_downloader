@@ -1,6 +1,6 @@
 //! Parameterized SQL only. Version migration and legacy import share one transaction.
 use super::*;
-use rusqlite::{Connection, OpenFlags, Transaction, params};
+use rusqlite::{params, Connection, OpenFlags, Transaction};
 use std::{
     fs::{self, OpenOptions},
     io::Read,
@@ -154,9 +154,16 @@ fn read(tx: &Transaction<'_>) -> Result<Vec<HistoryEntry>, String> {
     if count > MAX_ENTRIES as i64 {
         return Err("History count limit reached".into());
     }
-    let mut statement=tx.prepare("SELECT id,title,url,started_at,finished_at,status,metadata FROM records ORDER BY started_at,id").map_err(error)?;
+    read_query(tx, "SELECT id,title,url,started_at,finished_at,status,metadata FROM records ORDER BY started_at,id", [])
+}
+fn read_query<P: rusqlite::Params>(
+    tx: &Transaction<'_>,
+    sql: &str,
+    parameters: P,
+) -> Result<Vec<HistoryEntry>, String> {
+    let mut statement = tx.prepare(sql).map_err(error)?;
     let rows = statement
-        .query_map([], |r| {
+        .query_map(parameters, |r| {
             Ok((
                 r.get::<_, String>(0)?,
                 r.get::<_, String>(1)?,
@@ -212,6 +219,44 @@ fn read(tx: &Transaction<'_>) -> Result<Vec<HistoryEntry>, String> {
     }
     Ok(entries)
 }
+/// SQL identifiers/expressions are exclusively fixed strings. Only numeric
+/// LIMIT/OFFSET values enter bind parameters; no user SQL is interpolated.
+pub(super) fn page(
+    path: &Path,
+    sort: HistorySort,
+    offset: i64,
+    limit: i64,
+) -> Result<HistoryPage, String> {
+    let mut connection = open(path)?;
+    let tx = connection.transaction().map_err(error)?;
+    let version: u32 = tx
+        .query_row("PRAGMA user_version", [], |r| r.get(0))
+        .map_err(error)?;
+    if version != 1 {
+        return Err("History schema changed; reload required".into());
+    }
+    let total: usize = tx
+        .query_row("SELECT count(*) FROM records", [], |r| r.get(0))
+        .map_err(error)?;
+    if total > MAX_ENTRIES {
+        return Err("History count limit reached".into());
+    }
+    let order = match sort.order {
+        PageOrder::Title => "title COLLATE NOCASE",
+        PageOrder::Status => "status",
+        PageOrder::Site => "COALESCE(json_extract(metadata,'$.source_site'),'') COLLATE NOCASE",
+        PageOrder::Time => "started_at",
+        PageOrder::Resolution => "COALESCE(json_extract(metadata,'$.height'),json_extract(metadata,'$.requested_height'),0)",
+        PageOrder::Format => "COALESCE(json_extract(metadata,'$.ext'),json_extract(metadata,'$.requested_format'),'') COLLATE NOCASE",
+        PageOrder::Size => "COALESCE((SELECT sum(size) FROM artifacts WHERE record_id=records.id),0)",
+    };
+    let direction = if sort.desc { "DESC" } else { "ASC" };
+    let sql = format!("SELECT id,title,url,started_at,finished_at,status,metadata FROM records ORDER BY {order} {direction},id ASC LIMIT ?1 OFFSET ?2");
+    let entries = read_query(&tx, &sql, params![limit, offset])?;
+    tx.commit().map_err(error)?;
+    Ok(HistoryPage { entries, total })
+}
+
 /// BEGIN IMMEDIATE prevents a concurrent writer changing status between the
 /// guard and DELETE. Foreign-key cascade removes artifact rows, not files.
 pub(super) fn delete(path: &Path, id: &str) -> Result<(), String> {

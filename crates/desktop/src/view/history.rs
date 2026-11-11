@@ -6,7 +6,8 @@ use crate::{
     history_table::{Column, size, status},
 };
 use gpui_kit::{
-    component::{button::*, *},
+    base::{Scrollbar, ScrollbarMode},
+    component::{button::*, tooltip::Tooltip, *},
     *,
 };
 impl Downloader {
@@ -18,26 +19,96 @@ impl Downloader {
         if self.history.entries.is_empty() {
             return body.child(muted(cx, "暂无下载历史"));
         }
+        use crate::history::{HistorySort, PageOrder};
+        let order = match self.history_sort.column {
+            Column::Title => PageOrder::Title,
+            Column::Status => PageOrder::Status,
+            Column::Site => PageOrder::Site,
+            Column::Time => PageOrder::Time,
+            Column::Resolution => PageOrder::Resolution,
+            Column::Format => PageOrder::Format,
+            Column::Size => PageOrder::Size,
+        };
+        let page = match self.history.page(
+            HistorySort {
+                order,
+                desc: self.history_sort.descending,
+            },
+            self.history_page,
+            self.history_page_size,
+        ) {
+            Ok(page) => page,
+            Err(error) => return body.child(muted(cx, error)),
+        };
+        body = body.child(self.history_pagination(page.total, cx));
         let mut table = div().v_flex().w(px(1290.)).child(self.history_header(cx));
-        for (index, entry) in self
-            .history_sort
-            .rows(&self.history.entries)
-            .iter()
-            .enumerate()
-        {
+        for (index, entry) in page.entries.iter().enumerate() {
             table = table.child(self.history_row(index, entry, cx));
         }
         body.child(
             div()
-                .id("history-table-horizontal")
+                .relative()
                 .w_full()
-                .overflow_x_scroll()
-                .child(table),
+                .pb_4()
+                .child(
+                    div()
+                        .id("history-table-horizontal")
+                        .w_full()
+                        .overflow_x_scroll()
+                        .restrict_scroll_to_axis()
+                        .track_scroll(&self.history_scroll)
+                        .child(table),
+                )
+                .child(Scrollbar::horizontal(&self.history_scroll).mode(ScrollbarMode::Always)),
         )
-        .child(muted(
-            cx,
-            "点击表头排序 · 横向滚动查看更多列 · 删除记录不删除媒体文件",
-        ))
+    }
+    fn history_pagination(&self, total: usize, cx: &Context<Self>) -> Div {
+        let pages = total.div_ceil(self.history_page_size).max(1);
+        let mut row = div()
+            .h_flex()
+            .items_center()
+            .gap_2()
+            .child(muted(
+                cx,
+                format!("共 {total} 条 · 第 {} / {pages} 页", self.history_page + 1),
+            ))
+            .child(
+                Button::new("history-prev")
+                    .label("上一页")
+                    .disabled(self.history_page == 0)
+                    .on_click(cx.listener(|this, _, _, cx| {
+                        this.history_page = this.history_page.saturating_sub(1);
+                        cx.notify();
+                    })),
+            )
+            .child(
+                Button::new("history-next")
+                    .label("下一页")
+                    .disabled(self.history_page + 1 >= pages)
+                    .on_click(cx.listener(|this, _, _, cx| {
+                        this.history_page += 1;
+                        cx.notify();
+                    })),
+            );
+        for size in [25, 50, 100] {
+            row = row.child(
+                Button::new(("history-size", size))
+                    .label(format!(
+                        "{}{size} / 页",
+                        if self.history_page_size == size {
+                            "✓ "
+                        } else {
+                            ""
+                        }
+                    ))
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        this.history_page_size = size;
+                        this.history_page = 0;
+                        cx.notify();
+                    })),
+            );
+        }
+        row
     }
     fn history_header(&self, cx: &Context<Self>) -> Div {
         let mut row = div()
@@ -58,32 +129,40 @@ impl Downloader {
         .into_iter()
         .enumerate()
         {
+            let arrow = if self.history_sort.column == column {
+                if self.history_sort.descending {
+                    " ↓"
+                } else {
+                    " ↑"
+                }
+            } else {
+                ""
+            };
             row = row.child(
-                div().w(px(width)).flex_shrink_0().child(
-                    Button::new(("history-sort", index))
-                        .label(format!(
-                            "{}{}",
-                            label,
-                            if self.history_sort.column == column {
-                                if self.history_sort.descending {
-                                    " ↓"
-                                } else {
-                                    " ↑"
-                                }
-                            } else {
-                                ""
-                            }
-                        ))
-                        .on_click(cx.listener(move |this, _, _, cx| {
-                            this.history_sort.toggle(column);
-                            cx.notify();
-                        })),
-                ),
+                div()
+                    .id(("history-sort", index))
+                    .w(px(width))
+                    .h(px(32.))
+                    .flex_shrink_0()
+                    .flex()
+                    .items_center()
+                    .px_2()
+                    .text_xs()
+                    .font_semibold()
+                    .text_color(cx.theme().muted_foreground)
+                    .cursor_pointer()
+                    .hover(|style| style.bg(cx.theme().border))
+                    .child(format!("{label}{arrow}"))
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        this.history_sort.toggle(column);
+                        this.history_page = 0;
+                        cx.notify();
+                    })),
             );
         }
-        row.child(cell(cx, "原始链接".into(), 120.))
-            .child(cell(cx, "保存位置".into(), 145.))
-            .child(cell(cx, "操作".into(), 90.))
+        row.child(header_label(cx, "原始链接", 120.))
+            .child(header_label(cx, "保存位置", 145.))
+            .child(header_label(cx, "操作", 90.))
     }
     fn history_row(&self, index: usize, entry: &HistoryEntry, cx: &Context<Self>) -> Div {
         let url = if entry.metadata.original_url.is_empty() {
@@ -178,6 +257,16 @@ impl Downloader {
         )
     }
 }
+fn header_label(cx: &Context<Downloader>, label: &'static str, width: f32) -> Div {
+    muted(cx, label)
+        .w(px(width))
+        .h(px(32.))
+        .flex_shrink_0()
+        .flex()
+        .items_center()
+        .px_2()
+        .font_semibold()
+}
 fn cell(cx: &Context<Downloader>, text: String, width: f32) -> Div {
     muted(cx, text)
         .w(px(width))
@@ -190,6 +279,11 @@ pub(super) fn scroll_cell(id: (&'static str, usize), text: String, width: f32) -
         .w(px(width))
         .flex_shrink_0()
         .overflow_x_scroll()
+        .restrict_scroll_to_axis()
+        .tooltip({
+            let text = text.clone();
+            move |window, cx| Tooltip::new(text.clone()).build(window, cx)
+        })
         .child(div().whitespace_nowrap().text_sm().child(text))
 }
 #[cfg(test)]

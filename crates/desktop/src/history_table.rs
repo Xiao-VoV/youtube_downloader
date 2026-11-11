@@ -32,6 +32,7 @@ impl Sort {
             self.descending = false;
         }
     }
+    #[cfg(test)]
     pub fn rows<'a>(&self, entries: &'a [HistoryEntry]) -> Vec<&'a HistoryEntry> {
         let mut rows: Vec<_> = entries.iter().collect();
         rows.sort_by(|a, b| {

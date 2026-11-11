@@ -6,6 +6,82 @@ use std::{
 static ID: AtomicU64 = AtomicU64::new(0);
 
 #[test]
+fn sql_pages_sort_globally_with_stable_ties_and_total() {
+    let f = Fixture::new();
+    let mut h = History::load_at(f.db());
+    for i in 0..23 {
+        let mut e = entry();
+        e.id = format!("id-{i:02}");
+        e.title = format!("Title {:02}", 22 - i);
+        e.status = HistoryStatus::Succeeded;
+        e.started_at = i;
+        e.metadata.source_site = format!("site-{}", i % 3);
+        e.metadata.height = Some((i as u32 + 1) * 100);
+        e.metadata.ext = Some(format!("ext-{i:02}"));
+        e.artifacts[0].size = 1000 - i;
+        h.upsert(e).unwrap();
+    }
+    for order in [
+        PageOrder::Title,
+        PageOrder::Status,
+        PageOrder::Site,
+        PageOrder::Time,
+        PageOrder::Resolution,
+        PageOrder::Format,
+        PageOrder::Size,
+    ] {
+        let sort = HistorySort { order, desc: false };
+        let all = h.page(sort, 0, 100).unwrap();
+        assert_eq!(all.total, 23);
+        let joined = (0..5)
+            .flat_map(|page| h.page(sort, page, 5).unwrap().entries)
+            .map(|e| e.id)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            joined,
+            all.entries.into_iter().map(|e| e.id).collect::<Vec<_>>()
+        );
+    }
+    let asc = h
+        .page(
+            HistorySort {
+                order: PageOrder::Title,
+                desc: false,
+            },
+            0,
+            5,
+        )
+        .unwrap();
+    assert_eq!(asc.entries[0].id, "id-22");
+    let desc = h
+        .page(
+            HistorySort {
+                order: PageOrder::Resolution,
+                desc: true,
+            },
+            0,
+            5,
+        )
+        .unwrap();
+    assert_eq!(desc.entries[0].id, "id-22");
+    let beyond = h.page(HistorySort::default(), 999, 5).unwrap();
+    assert!(beyond.entries.is_empty());
+    assert_eq!(beyond.total, 23);
+    assert!(h.page(HistorySort::default(), 0, 0).is_err());
+    assert!(h.page(HistorySort::default(), 0, 101).is_err());
+    assert!(h.page(HistorySort::default(), usize::MAX, 100).is_err());
+}
+#[test]
+fn page_reads_current_database_not_legacy_snapshot() {
+    let f = Fixture::new();
+    let h = History::load_at(f.db());
+    let mut writer = History::load_at(f.db());
+    writer.upsert(entry()).unwrap();
+    assert!(h.entries.is_empty());
+    assert_eq!(h.page(HistorySort::default(), 0, 10).unwrap().total, 1);
+}
+
+#[test]
 fn delete_commits_metadata_and_cascades_artifacts_without_deleting_files() {
     let f = Fixture::new();
     let mut h = History::load_at(f.db());
@@ -74,13 +150,12 @@ impl Fixture {
 }
 impl Drop for Fixture {
     fn drop(&mut self) {
-        assert!(
-            self.0
-                .file_name()
-                .unwrap()
-                .to_string_lossy()
-                .starts_with("shiguang-sqlite-test-")
-        );
+        assert!(self
+            .0
+            .file_name()
+            .unwrap()
+            .to_string_lossy()
+            .starts_with("shiguang-sqlite-test-"));
         let _ = fs::remove_dir_all(&self.0);
     }
 }
@@ -172,7 +247,7 @@ fn old_json_entry_defaults_metadata() {
 #[cfg(unix)]
 #[test]
 fn private_file_and_symlink_rejected() {
-    use std::os::unix::fs::{PermissionsExt, symlink};
+    use std::os::unix::fs::{symlink, PermissionsExt};
     let f = Fixture::new();
     let h = History::load_at(f.db());
     assert!(h.error.is_none());

@@ -5,6 +5,7 @@ use youtube_engine::*;
 
 pub(crate) struct ActiveDownload {
     pub title: String,
+    pub title_scroll: ScrollHandle,
     pub status: String,
     pub cancel: CancelToken,
     pub record: crate::history::HistoryEntry,
@@ -63,6 +64,7 @@ impl Downloader {
             id.clone(),
             ActiveDownload {
                 title,
+                title_scroll: ScrollHandle::new(),
                 record,
                 status: "准备下载…".into(),
                 cancel: job.cancel.clone(),

@@ -115,6 +115,7 @@ mod tests {
                 id.to_owned(),
                 ActiveDownload {
                     title: id.into(),
+                    title_scroll: gpui_kit::ScrollHandle::new(),
                     status: "ready".into(),
                     cancel: CancelToken::new(),
                     record: HistoryEntry {

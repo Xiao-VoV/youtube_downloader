@@ -2,6 +2,7 @@
 use super::muted;
 use crate::{app::Downloader, settings::Page};
 use gpui_kit::{
+    base::{Scrollbar, ScrollbarMode},
     component::{
         button::*,
         input::{Input, Textarea},
@@ -35,10 +36,33 @@ impl Downloader {
                             .gap_2()
                             .child(
                                 div()
-                                    .id(("task-title-scroll", index))
+                                    .relative()
                                     .w_full()
-                                    .overflow_x_scroll()
-                                    .child(div().whitespace_nowrap().child(task.title.clone())),
+                                    .pb_4()
+                                    .child(
+                                        div()
+                                            .id(("task-title-scroll", index))
+                                            .w_full()
+                                            .overflow_x_scroll()
+                                            .restrict_scroll_to_axis()
+                                            .track_scroll(&task.title_scroll)
+                                            .tooltip({
+                                                let title = task.title.clone();
+                                                move |window, cx| {
+                                                    gpui_kit::component::tooltip::Tooltip::new(
+                                                        title.clone(),
+                                                    )
+                                                    .build(window, cx)
+                                                }
+                                            })
+                                            .child(
+                                                div().whitespace_nowrap().child(task.title.clone()),
+                                            ),
+                                    )
+                                    .child(
+                                        Scrollbar::horizontal(&task.title_scroll)
+                                            .mode(ScrollbarMode::Always),
+                                    ),
                             )
                             .child(muted(cx, task.status.clone())),
                     )

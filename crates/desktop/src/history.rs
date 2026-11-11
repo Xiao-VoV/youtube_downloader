@@ -55,6 +55,35 @@ pub(super) struct Document {
     entries: Vec<HistoryEntry>,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PageOrder {
+    Title,
+    Status,
+    Site,
+    Time,
+    Resolution,
+    Format,
+    Size,
+}
+#[derive(Clone, Copy, Debug)]
+pub struct HistorySort {
+    pub order: PageOrder,
+    pub desc: bool,
+}
+impl Default for HistorySort {
+    fn default() -> Self {
+        Self {
+            order: PageOrder::Time,
+            desc: true,
+        }
+    }
+}
+#[derive(Clone, Debug)]
+pub struct HistoryPage {
+    pub entries: Vec<HistoryEntry>,
+    pub total: usize,
+}
+
 pub struct History {
     pub entries: Vec<HistoryEntry>,
     pub error: Option<String>,
@@ -90,6 +119,34 @@ impl History {
             }
         }
         history
+    }
+    /// Zero-based page, database-wide sorting before LIMIT/OFFSET. The legacy
+    /// entries snapshot remains available for duplicate detection and updates.
+    pub fn page(
+        &self,
+        sort: HistorySort,
+        page: usize,
+        page_size: usize,
+    ) -> Result<HistoryPage, String> {
+        if self.blocked {
+            return Err(self
+                .error
+                .clone()
+                .unwrap_or_else(|| "History unavailable".into()));
+        }
+        if !(1..=100).contains(&page_size) {
+            return Err("History page size must be 1..100".into());
+        }
+        let offset = page
+            .checked_mul(page_size)
+            .and_then(|n| i64::try_from(n).ok())
+            .ok_or("History page offset overflow")?;
+        database::page(
+            self.path.as_ref().ok_or("History path unavailable")?,
+            sort,
+            offset,
+            page_size as i64,
+        )
     }
     /// Remove metadata only, never media files. Commit before changing UI state.
     pub fn delete(&mut self, id: &str) -> Result<(), String> {
