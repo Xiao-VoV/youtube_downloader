@@ -87,7 +87,7 @@ impl Downloader {
                         } else {
                             ""
                         },
-                        label
+                        crate::i18n::tr(label)
                     ))
                     .bg(if self.page == page {
                         cx.theme().muted
@@ -110,7 +110,10 @@ impl Downloader {
     }
     fn software_settings(&self, cx: &Context<Self>) -> Div {
         use crate::preferences::Appearance;
-        let mut choices = div().h_flex().gap_2().child(div().text_sm().child("外观"));
+        let mut choices = div()
+            .h_flex()
+            .gap_2()
+            .child(div().text_sm().child(crate::i18n::tr("外观")));
         for (id, label, value) in [
             ("system", "跟随系统", Appearance::System),
             ("light", "浅色", Appearance::Light),
@@ -121,7 +124,7 @@ impl Downloader {
                     .label(format!(
                         "{}{}",
                         if self.appearance == value { "✓ " } else { "" },
-                        label
+                        crate::i18n::tr(label)
                     ))
                     .on_click(cx.listener(move |this, _, window, cx| {
                         match crate::preferences::save(value) {
@@ -136,18 +139,38 @@ impl Downloader {
             );
         }
         let mut panel = div().v_flex().gap_4().max_w(px(680.)).child(choices);
-        for (label, value) in [("语言", "简体中文 · 多语言待实现")] {
-            panel = panel.child(
-                div()
-                    .h_flex()
-                    .justify_between()
-                    .p_4()
-                    .border_b_1()
-                    .border_color(cx.theme().border)
-                    .child(div().text_sm().child(label))
-                    .child(muted(cx, value)),
+        let mut languages = div()
+            .h_flex()
+            .gap_2()
+            .child(div().text_sm().child(crate::i18n::tr("语言")));
+        for (id, label, value) in [
+            ("zh", "简体中文", crate::i18n::Language::Zh),
+            ("en", "English", crate::i18n::Language::En),
+        ] {
+            languages = languages.child(
+                Button::new(id)
+                    .label(format!(
+                        "{}{}",
+                        if crate::i18n::language() == value {
+                            "✓ "
+                        } else {
+                            ""
+                        },
+                        label
+                    ))
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        match crate::preferences::save_language(value) {
+                            Ok(()) => {
+                                crate::i18n::set_language(value);
+                                cx.refresh_windows();
+                            }
+                            Err(e) => this.status = e,
+                        };
+                        cx.notify();
+                    })),
             );
         }
+        panel = panel.child(languages);
         panel.child(self.tool_controls(cx))
     }
     fn toolbar(&self, cx: &Context<Self>) -> Div {
@@ -167,11 +190,11 @@ impl Downloader {
             .py_4()
             .border_b_1()
             .border_color(cx.theme().border)
-            .child(div().font_semibold().child(title))
+            .child(div().font_semibold().child(crate::i18n::tr(title)))
             .child(
                 Button::new("add")
                     .primary()
-                    .label("＋ 新建下载")
+                    .label(crate::i18n::tr("＋ 新建下载"))
                     .disabled(self.busy)
                     .on_click(cx.listener(|this, _, _, cx| {
                         this.page = Page::New;

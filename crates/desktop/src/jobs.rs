@@ -1,4 +1,5 @@
 //! Active downloads own their immutable request/profile; the editor is only a draft.
+use crate::i18n::tr;
 use crate::{app::Downloader, messages::Update};
 use gpui_kit::*;
 use youtube_engine::*;
@@ -56,7 +57,7 @@ impl Downloader {
             },
         };
         if let Err(error) = self.history.upsert(record.clone()) {
-            self.status = format!("历史保存失败：{error}");
+            self.status = format!("{}: {error}", tr("历史保存失败"));
         }
         let inspector = self.engine.clone();
         let job = self.engine.spawn_download_with_profile(request, profile);
@@ -66,7 +67,7 @@ impl Downloader {
                 title,
                 title_scroll: ScrollHandle::new(),
                 record,
-                status: "准备下载…".into(),
+                status: tr("准备下载…"),
                 cancel: job.cancel.clone(),
             },
         );

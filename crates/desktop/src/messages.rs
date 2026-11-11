@@ -1,4 +1,5 @@
 //! UI message contract and user-facing error mapping.
+use crate::i18n::tr;
 use youtube_engine::*;
 // All process IO runs on engine-owned threads; this bounded bridge only carries UI data.
 pub(crate) enum Update {
@@ -21,5 +22,5 @@ pub(crate) fn error_text(error: &EngineError) -> String {
         ErrorKind::ProcessFailed => "引擎执行失败：请检查网络、工具版本及站点挑战依赖",
         _ => "任务失败",
     };
-    format!("{label} · {}", error.message)
+    format!("{} · {}", tr(label), error.message)
 }

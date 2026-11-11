@@ -1,6 +1,6 @@
 //! Parameterized SQL only. Version migration and legacy import share one transaction.
 use super::*;
-use rusqlite::{params, Connection, OpenFlags, Transaction};
+use rusqlite::{Connection, OpenFlags, Transaction, params};
 use std::{
     fs::{self, OpenOptions},
     io::Read,
@@ -154,7 +154,11 @@ fn read(tx: &Transaction<'_>) -> Result<Vec<HistoryEntry>, String> {
     if count > MAX_ENTRIES as i64 {
         return Err("History count limit reached".into());
     }
-    read_query(tx, "SELECT id,title,url,started_at,finished_at,status,metadata FROM records ORDER BY started_at,id", [])
+    read_query(
+        tx,
+        "SELECT id,title,url,started_at,finished_at,status,metadata FROM records ORDER BY started_at,id",
+        [],
+    )
 }
 fn read_query<P: rusqlite::Params>(
     tx: &Transaction<'_>,
@@ -246,12 +250,20 @@ pub(super) fn page(
         PageOrder::Status => "status",
         PageOrder::Site => "COALESCE(json_extract(metadata,'$.source_site'),'') COLLATE NOCASE",
         PageOrder::Time => "started_at",
-        PageOrder::Resolution => "COALESCE(json_extract(metadata,'$.height'),json_extract(metadata,'$.requested_height'),0)",
-        PageOrder::Format => "COALESCE(json_extract(metadata,'$.ext'),json_extract(metadata,'$.requested_format'),'') COLLATE NOCASE",
-        PageOrder::Size => "COALESCE((SELECT sum(size) FROM artifacts WHERE record_id=records.id),0)",
+        PageOrder::Resolution => {
+            "COALESCE(json_extract(metadata,'$.height'),json_extract(metadata,'$.requested_height'),0)"
+        }
+        PageOrder::Format => {
+            "COALESCE(json_extract(metadata,'$.ext'),json_extract(metadata,'$.requested_format'),'') COLLATE NOCASE"
+        }
+        PageOrder::Size => {
+            "COALESCE((SELECT sum(size) FROM artifacts WHERE record_id=records.id),0)"
+        }
     };
     let direction = if sort.desc { "DESC" } else { "ASC" };
-    let sql = format!("SELECT id,title,url,started_at,finished_at,status,metadata FROM records ORDER BY {order} {direction},id ASC LIMIT ?1 OFFSET ?2");
+    let sql = format!(
+        "SELECT id,title,url,started_at,finished_at,status,metadata FROM records ORDER BY {order} {direction},id ASC LIMIT ?1 OFFSET ?2"
+    );
     let entries = read_query(&tx, &sql, params![limit, offset])?;
     tx.commit().map_err(error)?;
     Ok(HistoryPage { entries, total })

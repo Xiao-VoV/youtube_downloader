@@ -1,6 +1,7 @@
 //! Persistent inspector for the current task; no placeholder settings or fake queues.
 use super::{eyebrow, muted};
 use crate::app::Downloader;
+use crate::i18n::tr;
 use gpui_kit::component::{button::*, *};
 use gpui_kit::*;
 use youtube_engine::Mode;
@@ -20,8 +21,8 @@ impl Downloader {
                     .py_4()
                     .border_b_1()
                     .border_color(cx.theme().border)
-                    .child(div().text_sm().font_semibold().child("保存选项"))
-                    .child(muted(cx, "应用于当前视频")),
+                    .child(div().text_sm().font_semibold().child(tr("保存选项")))
+                    .child(muted(cx, tr("应用于当前视频"))),
             )
             .child(
                 div()
@@ -40,17 +41,17 @@ impl Downloader {
                                 div()
                                     .v_flex()
                                     .gap_2()
-                                    .child(eyebrow(cx, "文件保护"))
-                                    .child(muted(cx, "每次下载创建独立子目录"))
-                                    .child(muted(cx, "不覆盖已有文件"))
-                                    .child(muted(cx, "仅使用已安装的本地工具")),
+                                    .child(eyebrow(cx, tr("文件保护")))
+                                    .child(muted(cx, tr("每次下载创建独立子目录")))
+                                    .child(muted(cx, tr("不覆盖已有文件")))
+                                    .child(muted(cx, tr("仅使用已安装的本地工具"))),
                             ),
                     ),
             )
             .child(self.download_action(cx))
     }
     fn presets(&self, cx: &Context<Self>) -> Div {
-        let mut choices = div().v_flex().gap_3().child(eyebrow(cx, "格式与质量"));
+        let mut choices = div().v_flex().gap_3().child(eyebrow(cx, tr("格式与质量")));
         for (id, mode, title, detail) in [
             ("video", Mode::Video, "兼容 MP4", "最高 1080p · H.264 / AAC"),
             ("audio", Mode::Audio, "原始音频", "保留源格式，不进行转码"),
@@ -77,9 +78,9 @@ impl Downloader {
                     .child(
                         Button::new(id)
                             .label(if selected {
-                                format!("●  {title}")
+                                format!("●  {}", tr(title))
                             } else {
-                                format!("○  {title}")
+                                format!("○  {}", tr(title))
                             })
                             .disabled(self.busy)
                             .on_click(cx.listener(move |this, _, _, cx| {
@@ -87,7 +88,7 @@ impl Downloader {
                                 cx.notify();
                             })),
                     )
-                    .child(muted(cx, detail)),
+                    .child(muted(cx, tr(detail))),
             );
         }
         choices
@@ -96,7 +97,7 @@ impl Downloader {
         div()
             .v_flex()
             .gap_3()
-            .child(eyebrow(cx, "保存位置"))
+            .child(eyebrow(cx, tr("保存位置")))
             .child(
                 div()
                     .p_3()
@@ -107,12 +108,12 @@ impl Downloader {
                         self.output
                             .as_ref()
                             .map(|p| p.display().to_string())
-                            .unwrap_or_else(|| "尚未选择文件夹".into()),
+                            .unwrap_or_else(|| tr("尚未选择文件夹")),
                     ),
             )
             .child(
                 Button::new("folder")
-                    .label("选择文件夹…")
+                    .label(tr("选择文件夹…"))
                     .disabled(self.busy)
                     .on_click(cx.listener(|this, _, _, cx| this.choose_directory(cx))),
             )
@@ -127,22 +128,22 @@ impl Downloader {
             .child(
                 Button::new("download")
                     .primary()
-                    .label("↓  开始下载")
+                    .label(tr("↓  开始下载"))
                     .disabled(self.busy || self.media.is_none() || self.output.is_none())
                     .on_click(cx.listener(|this, _, _, cx| this.download(cx))),
             )
             .child(
                 Button::new("cancel")
-                    .label("取消当前任务")
+                    .label(tr("取消当前任务"))
                     .disabled(!self.busy)
                     .on_click(cx.listener(|this, _, _, cx| {
                         if let Some(cancel) = &this.cancel {
                             cancel.cancel();
-                            this.status = "正在取消并回收进程，请稍候…".into();
+                            this.status = tr("正在取消并回收进程，请稍候…");
                             cx.notify();
                         }
                     })),
             )
-            .child(muted(cx, "无队列 · 无自动重试"))
+            .child(muted(cx, tr("无队列 · 无自动重试")))
     }
 }

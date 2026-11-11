@@ -1,5 +1,6 @@
 //! Compact sortable history table. Actions never delete downloaded media.
 use super::muted;
+use crate::i18n::tr;
 use crate::{
     app::Downloader,
     history::{HistoryEntry, HistoryStatus},
@@ -14,10 +15,10 @@ impl Downloader {
     pub(super) fn history_view(&self, cx: &Context<Self>) -> Div {
         let mut body = div().v_flex().gap_2();
         if let Some(error) = &self.history.error {
-            body = body.child(muted(cx, format!("历史存储：{error}")));
+            body = body.child(muted(cx, format!("{}: {error}", tr("历史存储"))));
         }
         if self.history.entries.is_empty() {
-            return body.child(muted(cx, "暂无下载历史"));
+            return body.child(muted(cx, tr("暂无下载历史")));
         }
         use crate::history::{HistorySort, PageOrder};
         let order = match self.history_sort.column {
@@ -70,11 +71,17 @@ impl Downloader {
             .gap_2()
             .child(muted(
                 cx,
-                format!("共 {total} 条 · 第 {} / {pages} 页", self.history_page + 1),
+                format!(
+                    "{} {total} {} · {} {} / {pages}",
+                    tr("共"),
+                    tr("条"),
+                    tr("第"),
+                    self.history_page + 1
+                ),
             ))
             .child(
                 Button::new("history-prev")
-                    .label("上一页")
+                    .label(tr("上一页"))
                     .disabled(self.history_page == 0)
                     .on_click(cx.listener(|this, _, _, cx| {
                         this.history_page = this.history_page.saturating_sub(1);
@@ -83,7 +90,7 @@ impl Downloader {
             )
             .child(
                 Button::new("history-next")
-                    .label("下一页")
+                    .label(tr("下一页"))
                     .disabled(self.history_page + 1 >= pages)
                     .on_click(cx.listener(|this, _, _, cx| {
                         this.history_page += 1;
@@ -94,12 +101,13 @@ impl Downloader {
             row = row.child(
                 Button::new(("history-size", size))
                     .label(format!(
-                        "{}{size} / 页",
+                        "{}{size} / {}",
                         if self.history_page_size == size {
                             "✓ "
                         } else {
                             ""
-                        }
+                        },
+                        tr("页")
                     ))
                     .on_click(cx.listener(move |this, _, _, cx| {
                         this.history_page_size = size;
@@ -152,7 +160,7 @@ impl Downloader {
                     .text_color(cx.theme().muted_foreground)
                     .cursor_pointer()
                     .hover(|style| style.bg(cx.theme().border))
-                    .child(format!("{label}{arrow}"))
+                    .child(format!("{}{arrow}", tr(label)))
                     .on_click(cx.listener(move |this, _, _, cx| {
                         this.history_sort.toggle(column);
                         this.history_page = 0;
@@ -191,7 +199,7 @@ impl Downloader {
                 entry.title.clone(),
                 220.,
             ))
-            .child(cell(cx, status(entry.status).into(), 80.))
+            .child(cell(cx, tr(status(entry.status)).into(), 80.))
             .child(cell(cx, entry.metadata.source_site.clone(), 90.))
             .child(cell(cx, format_time(entry.started_at), 145.))
             .child(cell(
@@ -212,7 +220,7 @@ impl Downloader {
             .child(
                 div().w(px(120.)).flex_shrink_0().child(
                     Button::new(("history-url", index))
-                        .label("打开原链接 ↗")
+                        .label(tr("打开原链接 ↗"))
                         .disabled(!safe)
                         .on_click(move |_, _, cx| cx.open_url(&url)),
                 ),
@@ -221,9 +229,9 @@ impl Downloader {
             div().w(px(145.)).flex_shrink_0().child(
                 Button::new(("history-path", index))
                     .label(if path_exists {
-                        "Finder 中显示"
+                        tr("Finder 中显示")
                     } else {
-                        "路径不可用"
+                        tr("路径不可用")
                     })
                     .disabled(!path_exists)
                     .on_click(move |_, _, cx| {
@@ -236,7 +244,11 @@ impl Downloader {
         row.child(
             div().w(px(90.)).flex_shrink_0().child(
                 Button::new(("history-delete", index))
-                    .label(if deleting { "确认删除" } else { "删除" })
+                    .label(if deleting {
+                        tr("确认删除")
+                    } else {
+                        tr("删除")
+                    })
                     .disabled(
                         entry.status == HistoryStatus::Running
                             || self.running.contains_key(&entry.id),
@@ -246,7 +258,7 @@ impl Downloader {
                             this.history_delete = Some(id.clone());
                         } else {
                             match this.history.delete(&id) {
-                                Ok(()) => this.status = "历史记录已删除，媒体文件保留。".into(),
+                                Ok(()) => this.status = tr("历史记录已删除，媒体文件保留。"),
                                 Err(e) => this.status = e,
                             };
                             this.history_delete = None;
@@ -258,7 +270,7 @@ impl Downloader {
     }
 }
 fn header_label(cx: &Context<Downloader>, label: &'static str, width: f32) -> Div {
-    muted(cx, label)
+    muted(cx, tr(label))
         .w(px(width))
         .h(px(32.))
         .flex_shrink_0()

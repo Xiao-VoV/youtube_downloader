@@ -150,12 +150,13 @@ impl Fixture {
 }
 impl Drop for Fixture {
     fn drop(&mut self) {
-        assert!(self
-            .0
-            .file_name()
-            .unwrap()
-            .to_string_lossy()
-            .starts_with("shiguang-sqlite-test-"));
+        assert!(
+            self.0
+                .file_name()
+                .unwrap()
+                .to_string_lossy()
+                .starts_with("shiguang-sqlite-test-")
+        );
         let _ = fs::remove_dir_all(&self.0);
     }
 }
@@ -247,7 +248,7 @@ fn old_json_entry_defaults_metadata() {
 #[cfg(unix)]
 #[test]
 fn private_file_and_symlink_rejected() {
-    use std::os::unix::fs::{symlink, PermissionsExt};
+    use std::os::unix::fs::{PermissionsExt, symlink};
     let f = Fixture::new();
     let h = History::load_at(f.db());
     assert!(h.error.is_none());

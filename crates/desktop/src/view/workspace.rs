@@ -1,5 +1,6 @@
 //! Focused task list, source workflow, and command review.
 use super::muted;
+use crate::i18n::tr;
 use crate::{app::Downloader, settings::Page};
 use gpui_kit::{
     base::{Scrollbar, ScrollbarMode},
@@ -14,7 +15,7 @@ impl Downloader {
     pub(super) fn tasks(&self, cx: &Context<Self>) -> Div {
         let mut body = div().v_flex().gap_3();
         if self.running.is_empty() {
-            return body.child(muted(cx, "暂无活动任务 · 已完成任务见下载历史"));
+            return body.child(muted(cx, tr("暂无活动任务 · 已完成任务见下载历史")));
         }
         for (index, (id, task)) in self.running.iter().enumerate() {
             let id = id.clone();
@@ -66,15 +67,17 @@ impl Downloader {
                             )
                             .child(muted(cx, task.status.clone())),
                     )
-                    .child(Button::new(("cancel-task", index)).label("取消").on_click(
-                        cx.listener(move |this, _, _, cx| {
-                            if let Some(task) = this.running.get_mut(&id) {
-                                task.cancel.cancel();
-                                task.status = "正在停止…".into();
-                            }
-                            cx.notify();
-                        }),
-                    )),
+                    .child(
+                        Button::new(("cancel-task", index))
+                            .label(tr("取消"))
+                            .on_click(cx.listener(move |this, _, _, cx| {
+                                if let Some(task) = this.running.get_mut(&id) {
+                                    task.cancel.cancel();
+                                    task.status = tr("正在停止…");
+                                }
+                                cx.notify();
+                            })),
+                    ),
             );
         }
         body
@@ -94,10 +97,15 @@ impl Downloader {
                             .text_xs()
                             .font_semibold()
                             .text_color(cx.theme().muted_foreground)
-                            .child("SHIGUANG / 新建任务"),
+                            .child(tr("SHIGUANG / 新建任务")),
                     )
-                    .child(div().text_2xl().font_bold().child("值得收藏，一键留下。"))
-                    .child(muted(cx, "粘贴视频链接，选择你的下载方式。")),
+                    .child(
+                        div()
+                            .text_2xl()
+                            .font_bold()
+                            .child(tr("值得收藏，一键留下。")),
+                    )
+                    .child(muted(cx, tr("粘贴视频链接，选择你的下载方式。"))),
             )
             .child(
                 div()
@@ -113,10 +121,10 @@ impl Downloader {
                             .h_flex()
                             .justify_between()
                             .items_center()
-                            .child(div().font_semibold().child("视频链接"))
+                            .child(div().font_semibold().child(tr("视频链接")))
                             .child(
                                 Button::new("paste-url")
-                                    .label("从剪贴板粘贴")
+                                    .label(tr("从剪贴板粘贴"))
                                     .disabled(self.busy)
                                     .on_click(cx.listener(|this, _, window, cx| {
                                         if let Some(text) =
@@ -136,7 +144,7 @@ impl Downloader {
                 div()
                     .v_flex()
                     .gap_3()
-                    .child(div().text_sm().font_semibold().child("使用下载配置"))
+                    .child(div().text_sm().font_semibold().child(tr("使用下载配置")))
                     .child(self.preset_switcher(cx))
                     .child(muted(
                         cx,
@@ -144,14 +152,14 @@ impl Downloader {
                             "{:?} · {} · {}",
                             self.mode,
                             if self.settings.profile.best_resolution {
-                                "最佳可用".into()
+                                tr("最佳可用")
                             } else {
-                                format!("最高 {}p", self.settings.profile.max_height)
+                                format!("{} {}p", tr("最高"), self.settings.profile.max_height)
                             },
                             self.output
                                 .as_ref()
                                 .map(|p| p.display().to_string())
-                                .unwrap_or("尚未选择保存位置".into())
+                                .unwrap_or(tr("尚未选择保存位置"))
                         ),
                     )),
             )
@@ -161,13 +169,13 @@ impl Downloader {
                     .gap_3()
                     .child(
                         Button::new("parse")
-                            .label("解析链接")
+                            .label(tr("解析链接"))
                             .disabled(self.busy)
                             .on_click(cx.listener(|this, _, _, cx| this.probe(cx))),
                     )
                     .child(
                         Button::new("edit-profile")
-                            .label("编辑下载配置")
+                            .label(tr("编辑下载配置"))
                             .disabled(self.busy)
                             .on_click(cx.listener(|this, _, _, cx| {
                                 this.page = Page::Profiles;
@@ -190,7 +198,7 @@ impl Downloader {
                 .child(
                     Button::new("review")
                         .primary()
-                        .label("下一步：查看命令")
+                        .label(tr("下一步：查看命令"))
                         .disabled(self.busy)
                         .on_click(cx.listener(|this, _, _, cx| this.download(cx))),
                 );
@@ -200,11 +208,11 @@ impl Downloader {
     fn download_summary(&self, cx: &Context<Self>) -> Div {
         let profile = self.settings.snapshot(cx);
         let quality = if self.mode != youtube_engine::Mode::Video {
-            "音频".into()
+            tr("音频")
         } else if profile.best_resolution {
-            "最佳可用分辨率".into()
+            tr("最佳可用分辨率")
         } else {
-            format!("最高 {}p", profile.max_height)
+            format!("{} {}p", tr("最高"), profile.max_height)
         };
         let format = match self.mode {
             youtube_engine::Mode::Video => match profile.container {
@@ -219,10 +227,13 @@ impl Downloader {
             .map(|b| {
                 format!(
                     "{b:?} · {}",
-                    profile.browser_profile.as_deref().unwrap_or("默认 Profile")
+                    profile
+                        .browser_profile
+                        .clone()
+                        .unwrap_or_else(|| tr("默认 Profile"))
                 )
             })
-            .unwrap_or("不使用".into());
+            .unwrap_or(tr("不使用"));
         let mut card = div()
             .v_flex()
             .gap_3()
@@ -238,7 +249,7 @@ impl Downloader {
                     .map(|m| m.title.clone())
                     .unwrap_or_default(),
             ),
-            ("输出", format!("{format} / {quality}")),
+            ("输出", format!("{} / {quality}", tr(format))),
             (
                 "保存到",
                 self.output
@@ -249,20 +260,23 @@ impl Downloader {
             (
                 "代理",
                 if profile.proxy.is_some() {
-                    "已启用（地址隐藏）"
+                    tr("已启用（地址隐藏）")
                 } else {
-                    "直连"
+                    tr("直连")
                 }
                 .into(),
             ),
             ("Cookie", cookies),
-            ("高级参数", format!("{} 个参数项", profile.extra_args.len())),
+            (
+                "高级参数",
+                format!("{} {}", profile.extra_args.len(), tr("个参数项")),
+            ),
         ] {
             card = card.child(
                 div()
                     .h_flex()
                     .gap_4()
-                    .child(muted(cx, label).w(px(80.)))
+                    .child(muted(cx, tr(label)).w(px(80.)))
                     .child(div().text_sm().child(value)),
             );
         }
@@ -286,13 +300,13 @@ impl Downloader {
         });
         let plan_valid = plan.is_some();
         let valid = plan_valid && (!duplicate || self.duplicate_confirmed);
-        let command = plan.unwrap_or_else(|| "配置无效，请检查高级参数或返回修改".into());
+        let command = plan.unwrap_or_else(|| tr("配置无效，请检查高级参数或返回修改"));
         let mut details = div().v_flex().gap_3().child(
             Button::new("command-toggle")
                 .label(if self.settings.command_open {
-                    "▾ 完整命令与高级参数"
+                    tr("▾ 完整命令与高级参数")
                 } else {
-                    "▸ 完整命令与高级参数"
+                    tr("▸ 完整命令与高级参数")
                 })
                 .on_click(cx.listener(|this, _, _, cx| {
                     this.settings.command_open = !this.settings.command_open;
@@ -313,7 +327,7 @@ impl Downloader {
             details = details
                 .child(lines)
                 .child(Textarea::new(&self.settings.extra).h(px(100.)))
-                .child(muted(cx, "高级参数每行一个参数或值；认证信息已隐藏。"));
+                .child(muted(cx, tr("高级参数每行一个参数或值；认证信息已隐藏。")));
         }
         div()
             .v_flex()
@@ -328,14 +342,14 @@ impl Downloader {
                     .child(
                         div()
                             .text_sm()
-                            .child("下载历史中已存在此视频，是否重新下载？"),
+                            .child(tr("下载历史中已存在此视频，是否重新下载？")),
                     )
                     .child(
                         Button::new("confirm-duplicate")
                             .label(if self.duplicate_confirmed {
-                                "✓ 已确认重新下载"
+                                tr("✓ 已确认重新下载")
                             } else {
-                                "仍然重新下载"
+                                tr("仍然重新下载")
                             })
                             .on_click(cx.listener(|this, _, _, cx| {
                                 this.duplicate_confirmed = true;
@@ -346,11 +360,11 @@ impl Downloader {
                 div()
             })
             .child(if valid {
-                muted(cx, "参数校验通过")
+                muted(cx, tr("参数校验通过"))
             } else if plan_valid && duplicate && !self.duplicate_confirmed {
-                muted(cx, "等待确认重新下载")
+                muted(cx, tr("等待确认重新下载"))
             } else {
-                muted(cx, "配置无效，请检查高级参数")
+                muted(cx, tr("配置无效，请检查高级参数"))
             })
             .child(details)
             .child(
@@ -360,18 +374,18 @@ impl Downloader {
                     .child(
                         Button::new("execute")
                             .primary()
-                            .label("确认下载")
+                            .label(tr("确认下载"))
                             .disabled(self.busy || !valid)
                             .on_click(cx.listener(|this, _, _, cx| this.execute_confirmed(cx))),
                     )
                     .child(
                         Button::new("copy")
-                            .label("复制命令")
+                            .label(tr("复制命令"))
                             .on_click(move |_, _, cx| {
                                 cx.write_to_clipboard(ClipboardItem::new_string(command.clone()))
                             }),
                     )
-                    .child(Button::new("back").label("返回").on_click(cx.listener(
+                    .child(Button::new("back").label(tr("返回")).on_click(cx.listener(
                         |this, _, _, cx| {
                             this.page = Page::New;
                             cx.notify();

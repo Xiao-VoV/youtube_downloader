@@ -1,5 +1,6 @@
 //! Preset mutations commit storage before replacing UI state.
 use crate::app::Downloader;
+use crate::i18n::tr;
 use gpui_kit::*;
 use youtube_engine::Preset;
 impl Downloader {
@@ -14,7 +15,7 @@ impl Downloader {
         };
         let name = self.settings.name.read(cx).value().trim().to_owned();
         if name.is_empty() {
-            self.status = "请输入配置名称".into();
+            self.status = tr("请输入配置名称");
             cx.notify();
             return;
         }
@@ -24,7 +25,7 @@ impl Downloader {
         match crate::settings::save(&store) {
             Ok(()) => {
                 self.settings.store = store;
-                self.status = "配置已更新".into();
+                self.status = tr("配置已更新");
             }
             Err(e) => self.status = e,
         }
@@ -37,7 +38,7 @@ impl Downloader {
         };
         if self.settings.delete_candidate.as_ref() != Some(&id) {
             self.settings.delete_candidate = Some(id);
-            self.status = "再次点击确认删除配置；不会影响运行任务或已下载文件。".into();
+            self.status = tr("再次点击确认删除配置；不会影响运行任务或已下载文件。");
             cx.notify();
             return;
         }
@@ -46,7 +47,7 @@ impl Downloader {
         match crate::settings::save(&store) {
             Ok(()) => {
                 self.settings.store = store;
-                self.status = "配置已删除，当前参数保留为未保存草稿".into();
+                self.status = tr("配置已删除，当前参数保留为未保存草稿");
             }
             Err(e) => self.status = e,
         }
@@ -55,7 +56,7 @@ impl Downloader {
     pub(crate) fn save_preset(&mut self, cx: &mut Context<Self>) {
         let name = self.settings.name.read(cx).value().trim().to_owned();
         if name.is_empty() {
-            self.status = "请输入配置名称".into();
+            self.status = tr("请输入配置名称");
             cx.notify();
             return;
         }
@@ -79,7 +80,7 @@ impl Downloader {
         match crate::settings::save(&store) {
             Ok(()) => {
                 self.settings.store = store;
-                self.status = "配置已保存".into();
+                self.status = tr("配置已保存");
             }
             Err(e) => self.status = e,
         }

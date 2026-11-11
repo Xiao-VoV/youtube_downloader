@@ -4,6 +4,7 @@ mod bridge;
 mod duplicates;
 mod history;
 mod history_table;
+mod i18n;
 mod jobs;
 mod messages;
 mod preferences;

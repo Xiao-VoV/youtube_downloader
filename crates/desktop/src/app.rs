@@ -37,6 +37,7 @@ pub(crate) struct Downloader {
 }
 impl Downloader {
     pub(crate) fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
+        crate::i18n::set_language(crate::preferences::load_language());
         let appearance = crate::preferences::load();
         crate::preferences::apply(appearance, window, cx);
         let url = cx.new(|cx| {

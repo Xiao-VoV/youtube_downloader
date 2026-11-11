@@ -1,4 +1,5 @@
 //! Route by task identity; a completed download never mutates a different draft.
+use crate::i18n::tr;
 use crate::{
     app::Downloader,
     history::HistoryStatus,
@@ -47,7 +48,7 @@ impl Downloader {
                 self.cancel = None;
                 match result {
                     Ok(info) => {
-                        self.status = "解析完成".into();
+                        self.status = tr("解析完成");
                         self.media = Some(info);
                     }
                     Err(e) => self.status = error_text(&e),
@@ -70,7 +71,7 @@ impl Downloader {
                         }
                     }
                     if let Err(e) = self.history.upsert(record.clone()) {
-                        self.status = format!("历史保存失败：{e}");
+                        self.status = format!("{}: {e}", tr("历史保存失败"));
                         // Preserve the completed result in this session even if disk is unavailable.
                         self.history.entries.retain(|r| r.id != record.id);
                         self.history.entries.push(record);
@@ -89,8 +90,8 @@ fn route_event(
     }
     if let Some(task) = tasks.get_mut(&event.task_id) {
         task.status = match event.kind {
-            EventKind::Starting => "正在启动…".into(),
-            EventKind::PostProcessing => "正在合并或转换…".into(),
+            EventKind::Starting => tr("正在启动…"),
+            EventKind::PostProcessing => tr("正在合并或转换…"),
             EventKind::Progress(p) => progress_text(p),
             _ => return,
         };
@@ -227,11 +228,12 @@ fn progress_text(p: Progress) -> String {
         p.total_bytes.or(p.total_bytes_estimate).filter(|n| *n > 0),
     ) {
         (Some(done), Some(total)) => format!(
-            "下载中 · {:.1}% · {:.1} MB",
+            "{} · {:.1}% · {:.1} MB",
+            tr("下载中"),
             (done as f64 / total as f64 * 100.).min(100.),
             done as f64 / 1e6
         ),
-        (Some(done), _) => format!("下载中 · {:.1} MB", done as f64 / 1e6),
-        _ => "正在下载…".into(),
+        (Some(done), _) => format!("{} · {:.1} MB", tr("下载中"), done as f64 / 1e6),
+        _ => tr("正在下载…"),
     }
 }

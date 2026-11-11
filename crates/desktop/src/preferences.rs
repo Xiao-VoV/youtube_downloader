@@ -38,13 +38,57 @@ pub(crate) fn save(value: Appearance) -> std::result::Result<(), String> {
         Appearance::Light => "light",
         Appearance::Dark => "dark",
     });
-    let tmp = path.with_extension("json.new");
-    fs::write(
-        &tmp,
-        serde_json::to_vec_pretty(&doc).map_err(|_| "设置编码失败")?,
-    )
-    .map_err(|_| "设置保存失败")?;
-    fs::rename(tmp, path).map_err(|_| "设置提交失败".into())
+    write_document(&path, &doc)
+}
+pub(crate) fn write_document(
+    path: &std::path::Path,
+    doc: &serde_json::Value,
+) -> std::result::Result<(), String> {
+    use std::io::Write;
+    if !doc.is_object() {
+        return Err("Invalid software settings".into());
+    }
+    fs::create_dir_all(path.parent().ok_or("Invalid settings path")?)
+        .map_err(|_| "Cannot create settings directory")?;
+    let tmp = path.with_extension(format!("{}.new", std::process::id()));
+    let mut options = fs::OpenOptions::new();
+    options.create_new(true).write(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    let mut file = options
+        .open(&tmp)
+        .map_err(|_| "Cannot create settings temporary file")?;
+    file.write_all(&serde_json::to_vec_pretty(doc).map_err(|_| "Settings encoding failed")?)
+        .and_then(|_| file.sync_all())
+        .map_err(|_| "Settings write failed")?;
+    fs::rename(&tmp, path).map_err(|_| "Settings commit failed".into())
+}
+pub(crate) fn load_language() -> crate::i18n::Language {
+    let en = path()
+        .and_then(|p| fs::read(p).ok())
+        .and_then(|b| serde_json::from_slice::<serde_json::Value>(&b).ok())
+        .is_some_and(|v| v["language"] == "en");
+    if en {
+        crate::i18n::Language::En
+    } else {
+        crate::i18n::Language::Zh
+    }
+}
+pub(crate) fn save_language(value: crate::i18n::Language) -> std::result::Result<(), String> {
+    let path = path().ok_or("Cannot locate software settings")?;
+    let mut doc = fs::read(&path)
+        .ok()
+        .and_then(|b| serde_json::from_slice::<serde_json::Value>(&b).ok())
+        .unwrap_or_else(|| serde_json::json!({}));
+    doc["language"] = serde_json::json!(if value == crate::i18n::Language::En {
+        "en"
+    } else {
+        "zh"
+    });
+    write_document(&path, &doc)
 }
 pub(crate) fn apply(value: Appearance, window: &mut Window, cx: &mut App) {
     match value {

@@ -1,5 +1,6 @@
 //! Preset editor: common controls first, advanced arguments explicitly separated.
 use super::muted;
+use crate::i18n::tr;
 use crate::{app::Downloader, settings::Page};
 use gpui_kit::{
     component::{
@@ -47,8 +48,10 @@ impl Downloader {
                         this.output = preset.profile.output_dir.clone();
                         this.settings.store.active_preset_id = Some(preset.id.clone());
                         this.status = match crate::settings::save(&this.settings.store) {
-                            Ok(()) => format!("已切换：{}", preset.name),
-                            Err(error) => format!("配置已用于本次会话，但无法保存选择：{error}"),
+                            Ok(()) => format!("{}: {}", tr("已切换"), preset.name),
+                            Err(error) => {
+                                format!("{}: {error}", tr("配置已用于本次会话，但无法保存选择"))
+                            }
                         };
                         this.settings
                             .name
@@ -94,7 +97,7 @@ impl Downloader {
             .gap_3()
             .max_w(px(700.))
             .child(self.preset_switcher(cx))
-            .child(div().text_sm().child("配置名称"))
+            .child(div().text_sm().child(tr("配置名称")))
             .child(Input::new(&self.settings.name))
             .child(self.quality_controls(cx))
             .child(self.cookie_controls(cx))
@@ -107,7 +110,7 @@ impl Downloader {
                     .gap_3()
                     .child(
                         Button::new("folder")
-                            .label("保存位置…")
+                            .label(tr("保存位置…"))
                             .on_click(cx.listener(|this, _, _, cx| this.choose_directory(cx))),
                     )
                     .child(muted(
@@ -115,7 +118,7 @@ impl Downloader {
                         self.output
                             .as_ref()
                             .map(|p| p.display().to_string())
-                            .unwrap_or("未选择".into()),
+                            .unwrap_or(tr("未选择")),
                     )),
             )
             .child(super::help::label("文件名模板","支持 title/id/channel/uploader/extractor。文件名必须以 .%(ext)s 结尾；不允许绝对路径或越界。","output-template"))
@@ -131,12 +134,12 @@ impl Downloader {
                     .child(
                         Button::new("save-preset")
                             .primary()
-                            .label("另存为配置")
+                            .label(tr("另存为配置"))
                             .on_click(cx.listener(|this, _, _, cx| this.save_preset(cx))),
                     )
                     .child(
                         Button::new("update-preset")
-                            .label("保存修改")
+                            .label(tr("保存修改"))
                             .disabled(self.settings.store.active_preset_id.is_none())
                             .on_click(cx.listener(|this, _, _, cx| this.update_preset(cx))),
                     )
@@ -147,15 +150,15 @@ impl Downloader {
                                     == self.settings.store.active_preset_id
                                     && self.settings.delete_candidate.is_some()
                                 {
-                                    "确认删除配置"
+                                    tr("确认删除配置")
                                 } else {
-                                    "删除配置"
+                                    tr("删除配置")
                                 },
                             )
                             .disabled(self.settings.store.active_preset_id.is_none())
                             .on_click(cx.listener(|this, _, _, cx| this.delete_preset(cx))),
                     )
-                    .child(Button::new("use").label("应用并返回").on_click(cx.listener(
+                    .child(Button::new("use").label(tr("应用并返回")).on_click(cx.listener(
                         |this, _, _, cx| {
                             this.media = None;
                             this.page = Page::New;
@@ -168,9 +171,9 @@ impl Downloader {
         let mut section = div().v_flex().gap_2().child(
             Button::new("advanced-toggle")
                 .label(if self.settings.advanced_open {
-                    "▾ 高级参数"
+                    tr("▾ 高级参数")
                 } else {
-                    "▸ 高级参数"
+                    tr("▸ 高级参数")
                 })
                 .on_click(cx.listener(|this, _, _, cx| {
                     this.settings.advanced_open = !this.settings.advanced_open;
@@ -180,7 +183,7 @@ impl Downloader {
         if self.settings.advanced_open {
             section = section
                 .child(Textarea::new(&self.settings.extra).h(px(100.)))
-                .child(muted(cx, "每行一个参数或值；支持字幕、限速与重试。"));
+                .child(muted(cx, tr("每行一个参数或值；支持字幕、限速与重试。")));
         }
         section
     }
@@ -193,9 +196,9 @@ impl Downloader {
         let mut heights = div().h_flex().gap_2().flex_wrap().child(
             Button::new("best-resolution")
                 .label(if self.settings.profile.best_resolution {
-                    "✓ 最佳可用"
+                    tr("✓ 最佳可用")
                 } else {
-                    "最佳可用"
+                    tr("最佳可用")
                 })
                 .on_click(cx.listener(|this, _, _, cx| {
                     this.settings.profile.best_resolution = true;
@@ -245,7 +248,7 @@ impl Downloader {
                         } else {
                             ""
                         },
-                        label
+                        tr(label)
                     ))
                     .on_click(cx.listener(move |this, _, _, cx| {
                         this.mode = mode;
@@ -279,7 +282,7 @@ impl Downloader {
                         } else {
                             ""
                         },
-                        label
+                        tr(label)
                     ))
                     .on_click(cx.listener(move |this, _, _, cx| {
                         this.settings.profile.cookies_browser = browser.clone();
