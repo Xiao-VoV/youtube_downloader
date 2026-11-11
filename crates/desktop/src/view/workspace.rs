@@ -15,7 +15,33 @@ impl Downloader {
     pub(super) fn tasks(&self, cx: &Context<Self>) -> Div {
         let mut body = div().v_flex().gap_3();
         if self.running.is_empty() {
-            return body.child(muted(cx, tr("暂无活动任务 · 已完成任务见下载历史")));
+            return body.child(
+                div()
+                    .v_flex()
+                    .items_center()
+                    .justify_center()
+                    .py_20()
+                    .gap_4()
+                    .child(
+                        div()
+                            .p_4()
+                            .rounded_full()
+                            .bg(cx.theme().muted)
+                            .child(super::design::glyph("download")),
+                    )
+                    .child(muted(cx, tr("暂无活动任务 · 已完成任务见下载历史")))
+                    .child(
+                        Button::new("queue-new")
+                            .small()
+                            .primary()
+                            .icon(IconName::Plus)
+                            .label(tr("新建任务"))
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                this.page = Page::New;
+                                cx.notify();
+                            })),
+                    ),
+            );
         }
         for (index, (id, task)) in self.running.iter().enumerate() {
             let id = id.clone();
@@ -85,50 +111,54 @@ impl Downloader {
     pub(super) fn new_download(&self, cx: &Context<Self>) -> Div {
         let mut body = div()
             .v_flex()
-            .gap_5()
-            .max_w(px(760.))
+            .gap_6()
+            .w_full()
+            .max_w(px(900.))
+            .mx_auto()
+            .py_6()
             .child(
                 div()
-                    .v_flex()
-                    .gap_2()
-                    .py_4()
+                    .h_flex()
+                    .items_center()
+                    .gap_3()
                     .child(
                         div()
-                            .text_xs()
-                            .font_semibold()
-                            .text_color(cx.theme().muted_foreground)
-                            .child(tr("VIDEO DOWNLOADER / 新建任务")),
+                            .w(px(44.))
+                            .h(px(44.))
+                            .rounded_xl()
+                            .bg(super::design::accent())
+                            .text_color(rgb(0xffffff))
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .child(super::design::glyph("arrow-down-to-line")),
                     )
                     .child(
                         div()
-                            .text_2xl()
-                            .font_bold()
-                            .child(tr("值得收藏，一键留下。")),
-                    )
-                    .child(muted(cx, tr("粘贴视频链接，选择你的下载方式。"))),
+                            .v_flex()
+                            .gap_1()
+                            .child(div().text_xl().font_semibold().child(tr("新建任务")))
+                            .child(muted(cx, tr("粘贴视频链接，选择你的下载方式。"))),
+                    ),
             )
             .child(
-                div()
-                    .v_flex()
-                    .gap_4()
-                    .p_6()
-                    .rounded_xl()
-                    .border_1()
-                    .border_color(cx.theme().border)
-                    .bg(cx.theme().muted)
+                super::design::section(cx, tr("视频链接"))
+                    .child(Input::new(&self.url).disabled(self.busy))
                     .child(
                         div()
                             .h_flex()
-                            .justify_between()
                             .items_center()
-                            .child(div().font_semibold().child(tr("视频链接")))
+                            .justify_between()
                             .child(
                                 Button::new("paste-url")
+                                    .ghost()
+                                    .small()
+                                    .icon(super::design::glyph("clipboard"))
                                     .label(tr("从剪贴板粘贴"))
                                     .disabled(self.busy)
                                     .on_click(cx.listener(|this, _, window, cx| {
                                         if let Some(text) =
-                                            cx.read_from_clipboard().and_then(|item| item.text())
+                                            cx.read_from_clipboard().and_then(|i| i.text())
                                         {
                                             this.url
                                                 .update(cx, |s, cx| s.set_value(text, window, cx));
@@ -136,51 +166,54 @@ impl Downloader {
                                             cx.notify();
                                         }
                                     })),
+                            )
+                            .child(
+                                Button::new("parse")
+                                    .primary()
+                                    .small()
+                                    .icon(IconName::ArrowRight)
+                                    .label(tr("解析链接"))
+                                    .disabled(self.busy)
+                                    .on_click(cx.listener(|this, _, _, cx| this.probe(cx))),
                             ),
-                    )
-                    .child(Input::new(&self.url).disabled(self.busy)),
+                    ),
             )
             .child(
-                div()
-                    .v_flex()
-                    .gap_3()
-                    .child(div().text_sm().font_semibold().child(tr("使用下载配置")))
+                super::design::section(cx, tr("使用下载配置"))
                     .child(self.preset_switcher(cx))
-                    .child(muted(
-                        cx,
-                        format!(
-                            "{:?} · {} · {}",
-                            self.mode,
-                            if self.settings.profile.best_resolution {
-                                tr("最佳可用")
-                            } else {
-                                format!("{} {}p", tr("最高"), self.settings.profile.max_height)
-                            },
-                            self.output
-                                .as_ref()
-                                .map(|p| p.display().to_string())
-                                .unwrap_or(tr("尚未选择保存位置"))
-                        ),
-                    )),
-            )
-            .child(
-                div()
-                    .h_flex()
-                    .gap_3()
                     .child(
-                        Button::new("parse")
-                            .label(tr("解析链接"))
-                            .disabled(self.busy)
-                            .on_click(cx.listener(|this, _, _, cx| this.probe(cx))),
-                    )
-                    .child(
-                        Button::new("edit-profile")
-                            .label(tr("编辑下载配置"))
-                            .disabled(self.busy)
-                            .on_click(cx.listener(|this, _, _, cx| {
-                                this.page = Page::Profiles;
-                                cx.notify();
-                            })),
+                        div()
+                            .h_flex()
+                            .items_center()
+                            .gap_3()
+                            .pt_3()
+                            .border_t_1()
+                            .border_color(cx.theme().border)
+                            .child(super::design::glyph("folder"))
+                            .child(
+                                muted(
+                                    cx,
+                                    self.output
+                                        .as_ref()
+                                        .map(|p| p.display().to_string())
+                                        .unwrap_or(tr("尚未选择保存位置")),
+                                )
+                                .flex_1()
+                                .min_w_0()
+                                .overflow_hidden(),
+                            )
+                            .child(
+                                Button::new("edit-profile")
+                                    .ghost()
+                                    .small()
+                                    .icon(IconName::Settings)
+                                    .label(tr("编辑下载配置"))
+                                    .disabled(self.busy)
+                                    .on_click(cx.listener(|this, _, _, cx| {
+                                        this.page = Page::Profiles;
+                                        cx.notify();
+                                    })),
+                            ),
                     ),
             );
         if let Some(info) = &self.media {

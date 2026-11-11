@@ -42,7 +42,7 @@ impl Downloader {
             Err(error) => return body.child(muted(cx, error)),
         };
         body = body.child(self.history_pagination(page.total, cx));
-        let mut table = div().v_flex().w(px(1290.)).child(self.history_header(cx));
+        let mut table = div().v_flex().w(px(1120.)).child(self.history_header(cx));
         for (index, entry) in page.entries.iter().enumerate() {
             table = table.child(self.history_row(index, entry, cx));
         }
@@ -50,7 +50,12 @@ impl Downloader {
             div()
                 .relative()
                 .w_full()
-                .pb_4()
+                .border_1()
+                .border_color(cx.theme().border)
+                .rounded_lg()
+                .overflow_hidden()
+                .bg(cx.theme().background)
+                .pb_2()
                 .child(
                     div()
                         .id("history-table-horizontal")
@@ -68,7 +73,8 @@ impl Downloader {
         let mut row = div()
             .h_flex()
             .items_center()
-            .gap_2()
+            .gap_1()
+            .py_2()
             .child(muted(
                 cx,
                 format!(
@@ -81,7 +87,10 @@ impl Downloader {
             ))
             .child(
                 Button::new("history-prev")
-                    .label(tr("上一页"))
+                    .ghost()
+                    .xsmall()
+                    .icon(IconName::ChevronLeft)
+                    .tooltip(tr("上一页"))
                     .disabled(self.history_page == 0)
                     .on_click(cx.listener(|this, _, _, cx| {
                         this.history_page = this.history_page.saturating_sub(1);
@@ -90,7 +99,10 @@ impl Downloader {
             )
             .child(
                 Button::new("history-next")
-                    .label(tr("下一页"))
+                    .ghost()
+                    .xsmall()
+                    .icon(IconName::ChevronRight)
+                    .tooltip(tr("下一页"))
                     .disabled(self.history_page + 1 >= pages)
                     .on_click(cx.listener(|this, _, _, cx| {
                         this.history_page += 1;
@@ -100,6 +112,8 @@ impl Downloader {
         for size in [25, 50, 100] {
             row = row.child(
                 Button::new(("history-size", size))
+                    .ghost()
+                    .xsmall()
                     .label(format!(
                         "{}{size} / {}",
                         if self.history_page_size == size {
@@ -123,7 +137,10 @@ impl Downloader {
             .h_flex()
             .items_center()
             .gap_2()
-            .p_2()
+            .px_2()
+            .h(px(34.))
+            .border_b_1()
+            .border_color(cx.theme().border)
             .bg(cx.theme().muted);
         for (index, (label, column, width)) in [
             ("名称", Column::Title, 220.),
@@ -168,9 +185,9 @@ impl Downloader {
                     })),
             );
         }
-        row.child(header_label(cx, "原始链接", 120.))
-            .child(header_label(cx, "保存位置", 145.))
-            .child(header_label(cx, "操作", 90.))
+        row.child(header_label(cx, "原始链接", 48.))
+            .child(header_label(cx, "保存位置", 48.))
+            .child(header_label(cx, "操作", 48.))
     }
     fn history_row(&self, index: usize, entry: &HistoryEntry, cx: &Context<Self>) -> Div {
         let url = if entry.metadata.original_url.is_empty() {
@@ -191,7 +208,9 @@ impl Downloader {
             .h_flex()
             .items_center()
             .gap_2()
-            .p_2()
+            .px_2()
+            .h(px(36.))
+            .hover(|style| style.bg(cx.theme().muted))
             .border_b_1()
             .border_color(cx.theme().border)
             .child(scroll_cell(
@@ -199,7 +218,7 @@ impl Downloader {
                 entry.title.clone(),
                 220.,
             ))
-            .child(cell(cx, tr(status(entry.status)).into(), 80.))
+            .child(status_badge(cx, entry.status))
             .child(cell(cx, entry.metadata.source_site.clone(), 90.))
             .child(cell(cx, format_time(entry.started_at), 145.))
             .child(cell(
@@ -218,17 +237,23 @@ impl Downloader {
             ))
             .child(cell(cx, format!("{:.1} MB", size(entry) as f64 / 1e6), 90.))
             .child(
-                div().w(px(120.)).flex_shrink_0().child(
+                div().w(px(48.)).flex_shrink_0().child(
                     Button::new(("history-url", index))
-                        .label(tr("打开原链接 ↗"))
+                        .ghost()
+                        .xsmall()
+                        .icon(IconName::ExternalLink)
+                        .tooltip(tr("打开原链接 ↗"))
                         .disabled(!safe)
                         .on_click(move |_, _, cx| cx.open_url(&url)),
                 ),
             );
         row = row.child(
-            div().w(px(145.)).flex_shrink_0().child(
+            div().w(px(48.)).flex_shrink_0().child(
                 Button::new(("history-path", index))
-                    .label(if path_exists {
+                    .ghost()
+                    .xsmall()
+                    .icon(IconName::FolderOpen)
+                    .tooltip(if path_exists {
                         tr("Finder 中显示")
                     } else {
                         tr("路径不可用")
@@ -242,9 +267,21 @@ impl Downloader {
             ),
         );
         row.child(
-            div().w(px(90.)).flex_shrink_0().child(
+            div().w(px(48.)).flex_shrink_0().child(
                 Button::new(("history-delete", index))
-                    .label(if deleting {
+                    .ghost()
+                    .xsmall()
+                    .icon(if deleting {
+                        IconName::Check
+                    } else {
+                        IconName::Delete
+                    })
+                    .text_color(if deleting {
+                        cx.theme().danger
+                    } else {
+                        cx.theme().muted_foreground
+                    })
+                    .tooltip(if deleting {
                         tr("确认删除")
                     } else {
                         tr("删除")
@@ -269,6 +306,29 @@ impl Downloader {
         )
     }
 }
+fn status_badge(cx: &Context<Downloader>, value: HistoryStatus) -> Div {
+    let color = match value {
+        HistoryStatus::Succeeded => cx.theme().success,
+        HistoryStatus::Failed => cx.theme().danger,
+        HistoryStatus::Running => cx.theme().primary,
+        HistoryStatus::Interrupted => cx.theme().warning,
+        HistoryStatus::Cancelled => cx.theme().muted_foreground,
+    };
+    div().w(px(80.)).flex_shrink_0().child(
+        div()
+            .h_flex()
+            .items_center()
+            .gap_1()
+            .px_2()
+            .py_1()
+            .rounded_md()
+            .text_xs()
+            .text_color(color)
+            .bg(cx.theme().muted)
+            .child(div().size(px(5.)).rounded_full().bg(color))
+            .child(tr(status(value))),
+    )
+}
 fn header_label(cx: &Context<Downloader>, label: &'static str, width: f32) -> Div {
     muted(cx, tr(label))
         .w(px(width))
@@ -277,6 +337,8 @@ fn header_label(cx: &Context<Downloader>, label: &'static str, width: f32) -> Di
         .flex()
         .items_center()
         .px_2()
+        .whitespace_nowrap()
+        .overflow_hidden()
         .font_semibold()
 }
 fn cell(cx: &Context<Downloader>, text: String, width: f32) -> Div {
@@ -296,7 +358,7 @@ pub(super) fn scroll_cell(id: (&'static str, usize), text: String, width: f32) -
             let text = text.clone();
             move |window, cx| Tooltip::new(text.clone()).build(window, cx)
         })
-        .child(div().whitespace_nowrap().text_sm().child(text))
+        .child(div().whitespace_nowrap().text_xs().child(text))
 }
 #[cfg(test)]
 mod tests {

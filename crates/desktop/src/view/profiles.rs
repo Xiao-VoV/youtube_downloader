@@ -18,6 +18,7 @@ impl Downloader {
             let preset = preset.clone();
             row = row.child(
                 Button::new(("preset", i))
+                    .small()
                     .label(format!(
                         "{}{}",
                         if self.settings.store.active_preset_id.as_ref() == Some(&preset.id) {
@@ -36,7 +37,7 @@ impl Downloader {
                     )
                     .border_color(
                         if self.settings.store.active_preset_id.as_ref() == Some(&preset.id) {
-                            cx.theme().foreground
+                            super::design::accent()
                         } else {
                             cx.theme().border
                         },
@@ -92,59 +93,43 @@ impl Downloader {
         row
     }
     pub(super) fn profile_editor(&self, cx: &Context<Self>) -> Div {
-        div()
-            .v_flex()
-            .gap_3()
-            .max_w(px(700.))
-            .child(self.preset_switcher(cx))
-            .child(div().text_sm().child(tr("配置名称")))
-            .child(Input::new(&self.settings.name))
-            .child(self.quality_controls(cx))
-            .child(self.cookie_controls(cx))
-            .child(super::help::label("代理 URL","留空直连；支持 http(s)、socks4/5。含凭据的代理仅本次会话使用。","network-options"))
-            .child(Input::new(&self.settings.proxy))
-            .child(
-                div()
-                    .h_flex()
-                    .items_center()
-                    .gap_3()
-                    .child(
-                        Button::new("folder")
-                            .label(tr("保存位置…"))
-                            .on_click(cx.listener(|this, _, _, cx| this.choose_directory(cx))),
-                    )
-                    .child(muted(
-                        cx,
-                        self.output
-                            .as_ref()
-                            .map(|p| p.display().to_string())
-                            .unwrap_or(tr("未选择")),
-                    )),
-            )
-            .child(super::help::label("文件名模板","支持 title/id/channel/uploader/extractor。文件名必须以 .%(ext)s 结尾；不允许绝对路径或越界。","output-template"))
-            .child(Input::new(&self.settings.filename_template))
-            .child(super::help::label("子目录模板","留空直接保存；示例 %(extractor)s/%(channel)s。只允许安全相对路径。","output-template"))
-            .child(Input::new(&self.settings.folder_template))
-
+        div().v_flex().gap_4().max_w(px(880.)).mx_auto()
+            .children((!self.settings.store.presets.is_empty()).then(||div().p_3().rounded_lg().bg(cx.theme().muted).child(self.preset_switcher(cx))))
+            .child(super::design::section(cx,tr("配置名称"))
+                .child(Input::new(&self.settings.name))
+                .child(self.quality_controls(cx)))
+            .child(super::design::section(cx,tr("浏览器 Cookie"))
+                .child(self.cookie_controls(cx))
+                .child(super::help::label("代理 URL","留空直连；支持 http(s)、socks4/5。含凭据的代理仅本次会话使用。","network-options"))
+                .child(Input::new(&self.settings.proxy)))
+            .child(super::design::section(cx,tr("保存位置…"))
+                .child(div().h_flex().gap_3().items_center()
+                    .child(Button::new("folder").small().ghost().icon(IconName::FolderOpen).label(tr("保存位置…"))
+                        .on_click(cx.listener(|this,_,_,cx|this.choose_directory(cx))))
+                    .child(muted(cx,self.output.as_ref().map(|p|p.display().to_string()).unwrap_or(tr("未选择")))))
+                .child(super::help::label("文件名模板","支持 title/id/channel/uploader/extractor。文件名必须以 .%(ext)s 结尾；不允许绝对路径或越界。","output-template"))
+                .child(Input::new(&self.settings.filename_template))
+                .child(super::help::label("子目录模板","留空直接保存；示例 %(extractor)s/%(channel)s。只允许安全相对路径。","output-template"))
+                .child(Input::new(&self.settings.folder_template)))
             .child(self.advanced_controls(cx))
             .child(
                 div()
                     .h_flex()
                     .gap_3()
                     .child(
-                        Button::new("save-preset")
+                        Button::new("save-preset").small()
                             .primary()
                             .label(tr("另存为配置"))
                             .on_click(cx.listener(|this, _, _, cx| this.save_preset(cx))),
                     )
                     .child(
-                        Button::new("update-preset")
+                        Button::new("update-preset").small()
                             .label(tr("保存修改"))
                             .disabled(self.settings.store.active_preset_id.is_none())
                             .on_click(cx.listener(|this, _, _, cx| this.update_preset(cx))),
                     )
                     .child(
-                        Button::new("delete-preset")
+                        Button::new("delete-preset").small()
                             .label(
                                 if self.settings.delete_candidate
                                     == self.settings.store.active_preset_id
@@ -170,6 +155,7 @@ impl Downloader {
     fn advanced_controls(&self, cx: &Context<Self>) -> Div {
         let mut section = div().v_flex().gap_2().child(
             Button::new("advanced-toggle")
+                .small()
                 .label(if self.settings.advanced_open {
                     tr("▾ 高级参数")
                 } else {
@@ -195,6 +181,7 @@ impl Downloader {
         ));
         let mut heights = div().h_flex().gap_2().flex_wrap().child(
             Button::new("best-resolution")
+                .small()
                 .label(if self.settings.profile.best_resolution {
                     tr("✓ 最佳可用")
                 } else {
@@ -210,6 +197,7 @@ impl Downloader {
         for height in [480, 720, 1080, 1440, 2160] {
             heights = heights.child(
                 Button::new(("height", height as usize))
+                    .small()
                     .label(format!(
                         "{}{}p",
                         if !self.settings.profile.best_resolution
@@ -239,6 +227,7 @@ impl Downloader {
         ] {
             formats = formats.child(
                 Button::new(id)
+                    .small()
                     .label(format!(
                         "{}{}",
                         if self.mode == mode
@@ -275,6 +264,7 @@ impl Downloader {
         ] {
             row = row.child(
                 Button::new(id)
+                    .small()
                     .label(format!(
                         "{}{}",
                         if self.settings.profile.cookies_browser == browser {

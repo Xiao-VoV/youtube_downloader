@@ -13,6 +13,9 @@ pub(super) fn label(text: &'static str, tip: &'static str, section: &'static str
         .child(div().text_sm().child(tr(text)))
         .child(
             Button::new(SharedString::from(format!("help-{text}")))
+                .small()
+                .ghost()
+                .xsmall()
                 .label("?")
                 .tooltip(tr(tip))
                 .on_click(move |_, _, cx| cx.open_url(&url)),

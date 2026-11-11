@@ -4,6 +4,7 @@ use gpui_kit::{
     component::{button::*, *},
     *,
 };
+mod design;
 mod help;
 mod history;
 mod profiles;
@@ -37,7 +38,7 @@ impl Render for Downloader {
                             .flex_1()
                             .min_h_0()
                             .overflow_y_scroll()
-                            .p_6()
+                            .p_5()
                             .child(match self.page {
                                 Page::Tasks => self.tasks(cx),
                                 Page::History => self.history_view(cx),
@@ -63,58 +64,98 @@ impl Render for Downloader {
 impl Downloader {
     fn sidebar(&self, cx: &Context<Self>) -> Div {
         let mut nav = div()
-            .w(px(168.))
+            .w(px(208.))
             .h_full()
             .flex_shrink_0()
             .v_flex()
-            .gap_3()
-            .p_4()
+            .p_3()
+            .gap_1()
             .bg(cx.theme().muted)
             .border_r_1()
             .border_color(cx.theme().border)
             .child(
                 div()
-                    .py_4()
-                    .font_bold()
-                    .text_lg()
-                    .child(crate::i18n::tr("视频下载器")),
+                    .h_flex()
+                    .items_center()
+                    .gap_3()
+                    .px_3()
+                    .py_5()
+                    .child(
+                        div()
+                            .w(px(30.))
+                            .h(px(30.))
+                            .rounded_lg()
+                            .bg(design::accent())
+                            .text_color(rgb(0xffffff))
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .child(design::glyph("arrow-down-to-line")),
+                    )
+                    .child(
+                        div()
+                            .font_semibold()
+                            .text_sm()
+                            .child(crate::i18n::tr("视频下载器")),
+                    ),
             );
-        for (id, label, page) in [
-            ("new", "新建任务", Page::New),
-            ("tasks", "下载队列", Page::Tasks),
-            ("history", "下载历史", Page::History),
-            ("profiles", "下载配置", Page::Profiles),
-            ("settings", "软件设置", Page::Settings),
+        for (id, label, icon, page) in [
+            ("new", "新建任务", "plus", Page::New),
+            ("tasks", "下载队列", "list", Page::Tasks),
+            ("history", "下载历史", "clock", Page::History),
+            ("profiles", "下载配置", "sliders-horizontal", Page::Profiles),
         ] {
+            let selected = self.page == page || (page == Page::New && self.page == Page::Confirm);
             nav = nav.child(
-                Button::new(id)
-                    .label(format!(
-                        "{}{}",
-                        if self.page == page || (page == Page::New && self.page == Page::Confirm) {
-                            "▸ "
-                        } else {
-                            ""
-                        },
-                        crate::i18n::tr(label)
-                    ))
-                    .bg(if self.page == page {
-                        cx.theme().muted
-                    } else {
+                div()
+                    .id(id)
+                    .h(px(36.))
+                    .h_flex()
+                    .items_center()
+                    .gap_3()
+                    .px_3()
+                    .rounded_md()
+                    .text_sm()
+                    .cursor_pointer()
+                    .bg(if selected {
                         cx.theme().background
-                    })
-                    .border_color(if self.page == page {
-                        cx.theme().foreground
                     } else {
-                        cx.theme().border
+                        cx.theme().muted
                     })
-                    .disabled(self.busy && matches!(page, Page::New | Page::Profiles))
+                    .text_color(if selected {
+                        design::accent()
+                    } else {
+                        cx.theme().muted_foreground
+                    })
+                    .hover(|s| s.bg(cx.theme().background))
+                    .child(design::glyph(icon))
+                    .child(crate::i18n::tr(label))
+                    .child(div().flex_1())
+                    .children(
+                        (page == Page::Tasks && !self.running.is_empty())
+                            .then(|| div().text_xs().child(self.running.len().to_string())),
+                    )
                     .on_click(cx.listener(move |this, _, _, cx| {
-                        this.page = page;
-                        cx.notify();
+                        if !this.busy || matches!(page, Page::Tasks | Page::History) {
+                            this.page = page;
+                            cx.notify();
+                        }
                     })),
             );
         }
         nav.child(div().flex_1())
+            .child(div().h(px(1.)).my_2().bg(cx.theme().border))
+            .child(
+                Button::new("settings-nav")
+                    .ghost()
+                    .small()
+                    .icon(IconName::Settings)
+                    .label(crate::i18n::tr("软件设置"))
+                    .on_click(cx.listener(|this, _, _, cx| {
+                        this.page = Page::Settings;
+                        cx.notify();
+                    })),
+            )
     }
     fn software_settings(&self, cx: &Context<Self>) -> Div {
         use crate::preferences::Appearance;
@@ -129,6 +170,7 @@ impl Downloader {
         ] {
             choices = choices.child(
                 Button::new(id)
+                    .small()
                     .label(format!(
                         "{}{}",
                         if self.appearance == value { "✓ " } else { "" },
@@ -157,6 +199,7 @@ impl Downloader {
         ] {
             languages = languages.child(
                 Button::new(id)
+                    .small()
                     .label(format!(
                         "{}{}",
                         if crate::i18n::language() == value {
@@ -192,22 +235,53 @@ impl Downloader {
         };
         div()
             .h_flex()
+            .h(px(52.))
             .items_center()
             .justify_between()
-            .px_6()
-            .py_4()
+            .px_5()
             .border_b_1()
             .border_color(cx.theme().border)
-            .child(div().font_semibold().child(crate::i18n::tr(title)))
             .child(
-                Button::new("add")
-                    .primary()
-                    .label(crate::i18n::tr("＋ 新建下载"))
-                    .disabled(self.busy)
-                    .on_click(cx.listener(|this, _, _, cx| {
-                        this.page = Page::New;
-                        cx.notify();
-                    })),
+                div()
+                    .h_flex()
+                    .items_center()
+                    .gap_2()
+                    .child(muted(cx, crate::i18n::tr("视频下载器")))
+                    .child(muted(cx, "/"))
+                    .child(
+                        div()
+                            .text_sm()
+                            .font_semibold()
+                            .child(crate::i18n::tr(title)),
+                    ),
+            )
+            .child(
+                div()
+                    .h_flex()
+                    .items_center()
+                    .gap_3()
+                    .child(
+                        div()
+                            .size(px(6.))
+                            .rounded_full()
+                            .bg(if self.running.is_empty() {
+                                cx.theme().muted_foreground
+                            } else {
+                                design::accent()
+                            }),
+                    )
+                    .child(
+                        Button::new("add")
+                            .primary()
+                            .small()
+                            .icon(IconName::Plus)
+                            .label(crate::i18n::tr("新建任务"))
+                            .disabled(self.busy)
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                this.page = Page::New;
+                                cx.notify();
+                            })),
+                    ),
             )
     }
 }
