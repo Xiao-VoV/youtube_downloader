@@ -1,0 +1,180 @@
+//! Window state and user actions. No blocking process calls on the UI thread.
+use gpui_kit::component::input::{InputEvent, InputState};
+use gpui_kit::*;
+use std::{
+    path::PathBuf,
+    time::{SystemTime, UNIX_EPOCH},
+};
+use youtube_engine::*;
+
+use crate::messages::{Update, error_text};
+pub(crate) struct Downloader {
+    pub(crate) url: Entity<InputState>,
+    pub(crate) media: Option<MediaInfo>,
+    pub(crate) preview_url: String,
+    pub(crate) mode: Mode,
+    pub(crate) output: Option<PathBuf>,
+    pub(crate) status: String,
+    pub(crate) health: String,
+    pub(crate) busy: bool,
+    pub(crate) cancel: Option<CancelToken>,
+    pub(crate) artifacts: Vec<Artifact>,
+    pub(crate) engine: Engine,
+    pub(crate) _subscriptions: Vec<Subscription>,
+}
+impl Downloader {
+    pub(crate) fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
+        let url = cx.new(|cx| {
+            InputState::new(window, cx)
+                .placeholder("粘贴 YouTube 视频链接，例如 https://youtu.be/…")
+        });
+        let sub = cx.subscribe(&url, |this, _, event: &InputEvent, cx| {
+            if matches!(event, InputEvent::Change) {
+                this.media = None;
+                cx.notify();
+            }
+        });
+        let engine = Engine::new(
+            ToolPaths::discover().unwrap_or_else(|_| ToolPaths {
+                yt_dlp: PathBuf::from("/nonexistent/yt-dlp"),
+                ffmpeg: None,
+                ffprobe: None,
+            }),
+            EngineConfig::default(),
+        );
+        let (tx, rx) = async_channel::bounded(16);
+        let checker = engine.clone();
+        std::thread::spawn(move || {
+            let report = checker.health_check(&CancelToken::new());
+            let text = format!(
+                "yt-dlp {} · FFmpeg {} · 本地工具，不自动安装",
+                if report.yt_dlp.healthy {
+                    report.yt_dlp.version.as_deref().unwrap_or("就绪")
+                } else {
+                    "不可用"
+                },
+                if report.ffmpeg.as_ref().is_some_and(|t| t.healthy) {
+                    "就绪"
+                } else {
+                    "缺失"
+                }
+            );
+            let _ = tx.send_blocking(Update::Health(text));
+        });
+        Self::listen(rx, cx);
+        Self {
+            url,
+            media: None,
+            preview_url: String::new(),
+            mode: Mode::Video,
+            output: None,
+            status: "选择保存目录，然后粘贴视频链接。".into(),
+            health: "正在检查本地工具…".into(),
+            busy: false,
+            cancel: None,
+            artifacts: vec![],
+            engine,
+            _subscriptions: vec![sub],
+        }
+    }
+    pub(crate) fn probe(&mut self, cx: &mut Context<Self>) {
+        if self.busy {
+            return;
+        }
+        let url = self.url.read(cx).value().to_string();
+        let url = match normalize_url(&url) {
+            Ok(url) => url,
+            Err(error) => {
+                self.status = error_text(&error);
+                cx.notify();
+                return;
+            }
+        };
+        self.preview_url = url.clone();
+        self.media = None;
+        self.artifacts.clear();
+        let job = self.engine.spawn_probe(url);
+        self.cancel = Some(job.cancel.clone());
+        self.busy = true;
+        self.status = "正在解析视频信息…".into();
+        let (tx, rx) = async_channel::bounded(16);
+        std::thread::spawn(move || {
+            while job.events.recv().is_ok() {}
+            let _ = tx.send_blocking(Update::Preview(job.join()));
+        });
+        Self::listen(rx, cx);
+        cx.notify();
+    }
+    pub(crate) fn download(&mut self, cx: &mut Context<Self>) {
+        if self.busy || self.media.is_none() {
+            return;
+        }
+        let Some(output_dir) = self.output.clone() else {
+            self.status = "请先选择保存目录。".into();
+            cx.notify();
+            return;
+        };
+        let id = format!(
+            "{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos()
+        );
+        let job = self.engine.spawn_download(DownloadRequest {
+            url: self.preview_url.clone(),
+            mode: self.mode,
+            output_dir,
+            format_id: None,
+            task_id: id.clone(),
+            attempt_id: id,
+        });
+        self.cancel = Some(job.cancel.clone());
+        self.busy = true;
+        self.artifacts.clear();
+        self.status = "准备下载…".into();
+        let (tx, rx) = async_channel::bounded(16);
+        std::thread::spawn(move || {
+            while let Ok(event) = job.events.recv() {
+                if tx.send_blocking(Update::Event(event)).is_err() {
+                    job.cancel.cancel();
+                }
+            }
+            let _ = tx.send_blocking(Update::Finished(job.join()));
+        });
+        Self::listen(rx, cx);
+        cx.notify();
+    }
+    pub(crate) fn choose_directory(&mut self, cx: &mut Context<Self>) {
+        let picker = cx.prompt_for_paths(PathPromptOptions {
+            files: false,
+            directories: true,
+            multiple: false,
+            prompt: Some("选择下载保存目录".into()),
+        });
+        cx.spawn(async move |this, cx| match picker.await {
+            Ok(Ok(Some(paths))) => {
+                let _ = this.update(cx, |this, cx| {
+                    this.output = paths.into_iter().next();
+                    cx.notify();
+                });
+            }
+            Ok(Ok(None)) => {}
+            _ => {
+                let _ = this.update(cx, |this, cx| {
+                    this.status = "无法打开目录选择器，请重试。".into();
+                    cx.notify();
+                });
+            }
+        })
+        .detach();
+    }
+}
+impl Drop for Downloader {
+    fn drop(&mut self) {
+        if let Some(cancel) = &self.cancel {
+            cancel.cancel();
+        }
+    }
+}

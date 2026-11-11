@@ -1,0 +1,4 @@
+/code/target/
+.DS_Store
+*.log
+/target/
