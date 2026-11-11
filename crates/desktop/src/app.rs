@@ -113,7 +113,7 @@ impl Downloader {
             preview_url: String::new(),
             mode,
             output,
-            status: tr("选择保存目录，然后粘贴视频链接。"),
+            status: String::new(),
             health: tr("正在检查本地工具…"),
             busy: false,
             cancel: None,

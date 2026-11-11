@@ -27,8 +27,12 @@ impl Downloader {
     fn apply_update(&mut self, update: Update) {
         match update {
             Update::Health(text) => self.health = text,
-            Update::Tools(result) => {
-                self.tools.busy = false;
+            Update::Tools(checking, result) => {
+                if checking {
+                    self.tools.checking = false;
+                } else {
+                    self.tools.busy = false;
+                }
                 match result {
                     Ok(out) => {
                         if let Some(engine) = out.engine {
@@ -41,7 +45,11 @@ impl Downloader {
                         if out.release.is_some() {
                             self.tools.release = out.release;
                         }
-                        self.tools.versions = out.versions;
+                        // Release checks do not own the installed-version state: a
+                        // concurrent local switch/delete may already have refreshed it.
+                        if !checking {
+                            self.tools.versions = out.versions;
+                        }
                         self.tools.status = out.status;
                     }
                     Err(error) => self.tools.status = error,

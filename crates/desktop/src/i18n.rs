@@ -30,6 +30,14 @@ fn translate(source: &str, language: Language) -> &str {
         .unwrap_or(source)
 }
 const CATALOG: &[(&str, &str)] = &[
+    ("视频下载器", "Video Downloader"),
+    ("VIDEO DOWNLOADER / 新建任务", "VIDEO DOWNLOADER / NEW TASK"),
+    ("自动探测", "Auto-detect"),
+    (
+        "已自动探测并填入系统优先路径。",
+        "System-first paths detected and filled.",
+    ),
+    ("正在检查更新…", "Checking for updates…"),
     ("本地工具配置", "Local tools"),
     ("当前生效路径", "Effective path"),
     ("确认重新发现", "Confirm rediscovery"),

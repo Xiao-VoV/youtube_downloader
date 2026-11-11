@@ -12,7 +12,7 @@ pub(crate) struct ToolSettings {
     pub status: String,
     pub effective: Option<ToolPaths>,
     pub versions: Vec<ManagedVersion>,
-    pub rediscover_confirm: bool,
+    pub checking: bool,
 }
 pub(crate) fn discover() -> CustomToolPaths {
     let managed = ToolManager::default_root().ok().and_then(|r| {
@@ -21,9 +21,9 @@ pub(crate) fn discover() -> CustomToolPaths {
             .ok()
     });
     CustomToolPaths {
-        yt_dlp: managed
-            .map(|r| r.paths.yt_dlp)
-            .or_else(|| resolve_tool(Path::new("yt-dlp")).ok()),
+        yt_dlp: resolve_tool(Path::new("yt-dlp"))
+            .ok()
+            .or_else(|| managed.map(|r| r.paths.yt_dlp)),
         ffmpeg: resolve_tool(Path::new("ffmpeg")).ok(),
         ffprobe: resolve_tool(Path::new("ffprobe")).ok(),
     }
@@ -58,7 +58,7 @@ impl ToolSettings {
                 .ok()
                 .and_then(|r| ToolManager::new(r).installed_versions().ok())
                 .unwrap_or_default(),
-            rediscover_confirm: false,
+            checking: false,
         }
     }
     pub fn paths(&self, cx: &App) -> CustomToolPaths {
@@ -113,20 +113,14 @@ pub(crate) enum Operation {
 }
 impl Downloader {
     pub(crate) fn rediscover_tools(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if !self.tools.rediscover_confirm {
-            self.tools.rediscover_confirm = true;
-            self.tools.status = tr("再次点击重新发现以替换输入框；当前生效工具不变。");
-            cx.notify();
-            return;
-        }
-        self.tools.rediscover_confirm = false;
         let paths = discover();
         self.tools.fill(&paths, window, cx);
-        self.tools.status = tr("已重新发现，请检查后保存应用。");
+        self.tools.status = tr("已自动探测并填入系统优先路径。");
         cx.notify();
     }
     pub(crate) fn manage_tools(&mut self, operation: Operation, cx: &mut Context<Self>) {
-        if self.tools.busy {
+        let checking = matches!(operation, Operation::Check);
+        if self.tools.busy || (checking && self.tools.checking) {
             return;
         }
         let mut custom = self.tools.paths(cx);
@@ -139,7 +133,11 @@ impl Downloader {
         if matches!(operation, Operation::Install) && release.is_none() {
             return;
         }
-        self.tools.busy = true;
+        if checking {
+            self.tools.checking = true;
+        } else {
+            self.tools.busy = true;
+        }
         self.tools.status = tr("正在处理工具请求…");
         let (tx, rx) = async_channel::bounded(1);
         std::thread::spawn(move || {
@@ -206,7 +204,7 @@ impl Downloader {
                 out.versions = manager.installed_versions()?;
                 Ok(out)
             })();
-            let _ = tx.send_blocking(Update::Tools(result));
+            let _ = tx.send_blocking(Update::Tools(checking, result));
         });
         Self::listen(rx, cx);
         cx.notify();

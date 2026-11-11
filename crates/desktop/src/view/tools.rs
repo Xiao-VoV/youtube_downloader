@@ -58,11 +58,7 @@ impl Downloader {
                 .flex_wrap()
                 .child(
                     Button::new("tools-discover")
-                        .label(tr(if self.tools.rediscover_confirm {
-                            "确认重新发现"
-                        } else {
-                            "重新发现"
-                        }))
+                        .label(tr("自动探测"))
                         .disabled(self.tools.busy)
                         .on_click(
                             cx.listener(|this, _, window, cx| this.rediscover_tools(window, cx)),
@@ -100,8 +96,12 @@ impl Downloader {
                 .child(div().font_semibold().child(tr("应用托管的 yt-dlp")))
                 .child(
                     Button::new("tools-check")
-                        .label(tr("检查 yt-dlp 更新"))
-                        .disabled(self.tools.busy)
+                        .label(tr(if self.tools.checking {
+                            "正在检查更新…"
+                        } else {
+                            "检查 yt-dlp 更新"
+                        }))
+                        .disabled(self.tools.busy || self.tools.checking)
                         .on_click(
                             cx.listener(|this, _, _, cx| this.manage_tools(Operation::Check, cx)),
                         ),
@@ -126,12 +126,7 @@ impl Downloader {
                 }))
                 .child(self.managed_versions(cx)),
         );
-        panel
-            .child(muted(cx, self.tools.status.clone()))
-            .child(muted(
-                cx,
-                tr("FFmpeg / ffprobe 不自动下载；可选择已安装工具。现有下载不受工具切换影响。"),
-            ))
+        panel.child(muted(cx, self.tools.status.clone()))
     }
     fn managed_versions(&self, cx: &Context<Self>) -> Div {
         let mut list = div().v_flex().gap_2();
@@ -183,7 +178,11 @@ impl Downloader {
                                 Button::new(("delete-version", index))
                                     .label(tr("删除版本"))
                                     .disabled(
-                                        self.tools.busy || self.busy || selected || version.active || protected,
+                                        self.tools.busy
+                                            || self.busy
+                                            || selected
+                                            || version.active
+                                            || protected,
                                     )
                                     .on_click(cx.listener(move |this, _, _, cx| {
                                         this.manage_tools(Operation::Remove(remove.clone()), cx)

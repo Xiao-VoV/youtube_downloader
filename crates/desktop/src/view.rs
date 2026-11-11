@@ -47,14 +47,16 @@ impl Render for Downloader {
                                 Page::Settings => self.software_settings(cx),
                             }),
                     )
-                    .child(
+                    .child(if self.status.is_empty() {
+                        div()
+                    } else {
                         div()
                             .border_t_1()
                             .border_color(cx.theme().border)
                             .px_6()
                             .py_2()
-                            .child(muted(cx, self.status.clone())),
-                    ),
+                            .child(muted(cx, self.status.clone()))
+                    }),
             )
     }
 }
@@ -70,7 +72,13 @@ impl Downloader {
             .bg(cx.theme().muted)
             .border_r_1()
             .border_color(cx.theme().border)
-            .child(div().py_4().font_bold().text_lg().child("▶  拾光"));
+            .child(
+                div()
+                    .py_4()
+                    .font_bold()
+                    .text_lg()
+                    .child(crate::i18n::tr("视频下载器")),
+            );
         for (id, label, page) in [
             ("new", "新建任务", Page::New),
             ("tasks", "下载队列", Page::Tasks),
@@ -107,7 +115,6 @@ impl Downloader {
             );
         }
         nav.child(div().flex_1())
-            .child(muted(cx, crate::i18n::tr("开发预览 0.1")))
     }
     fn software_settings(&self, cx: &Context<Self>) -> Div {
         use crate::preferences::Appearance;

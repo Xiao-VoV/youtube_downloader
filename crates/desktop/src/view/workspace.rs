@@ -97,7 +97,7 @@ impl Downloader {
                             .text_xs()
                             .font_semibold()
                             .text_color(cx.theme().muted_foreground)
-                            .child(tr("SHIGUANG / 新建任务")),
+                            .child(tr("VIDEO DOWNLOADER / 新建任务")),
                     )
                     .child(
                         div()
