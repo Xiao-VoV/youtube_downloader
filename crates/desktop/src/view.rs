@@ -1,9 +1,10 @@
-//! Desktop shell: persistent navigation, task workspace, inspector and status bar.
-use crate::app::Downloader;
-use gpui_kit::component::*;
-use gpui_kit::*;
-
-mod inspector;
+//! Minimal desktop shell. Each workflow has a separate page, not a permanent inspector.
+use crate::{app::Downloader, settings::Page};
+use gpui_kit::{
+    component::{button::*, *},
+    *,
+};
+mod profiles;
 mod workspace;
 
 pub(super) fn muted(cx: &Context<Downloader>, text: impl Into<SharedString>) -> Div {
@@ -12,101 +13,101 @@ pub(super) fn muted(cx: &Context<Downloader>, text: impl Into<SharedString>) -> 
         .text_color(cx.theme().muted_foreground)
         .child(text.into())
 }
-pub(super) fn eyebrow(cx: &Context<Downloader>, text: &'static str) -> Div {
-    muted(cx, text).font_semibold()
-}
 impl Render for Downloader {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         div()
             .size_full()
-            .v_flex()
+            .h_flex()
             .bg(cx.theme().background)
             .text_color(cx.theme().foreground)
+            .child(self.sidebar(cx))
             .child(
                 div()
-                    .h_flex()
                     .flex_1()
-                    .min_h_0()
-                    .child(self.sidebar(cx))
-                    .child(self.workspace(cx))
-                    .child(self.inspector(cx)),
+                    .min_w_0()
+                    .v_flex()
+                    .h_full()
+                    .child(self.toolbar(cx))
+                    .child(
+                        div()
+                            .id("page")
+                            .flex_1()
+                            .min_h_0()
+                            .overflow_y_scroll()
+                            .p_6()
+                            .child(match self.page {
+                                Page::Tasks => self.tasks(cx),
+                                Page::New => self.new_download(cx),
+                                Page::Profiles => self.profile_editor(cx),
+                                Page::Confirm => self.confirmation(cx),
+                            }),
+                    )
+                    .child(
+                        div()
+                            .border_t_1()
+                            .border_color(cx.theme().border)
+                            .px_6()
+                            .py_2()
+                            .child(muted(cx, self.status.clone())),
+                    ),
             )
-            .child(self.status_bar(cx))
     }
 }
 impl Downloader {
     fn sidebar(&self, cx: &Context<Self>) -> Div {
-        div()
-            .w(px(176.))
-            .flex_shrink_0()
+        let mut nav = div()
+            .w(px(168.))
             .h_full()
+            .flex_shrink_0()
             .v_flex()
+            .gap_3()
             .p_4()
-            .gap_6()
             .bg(cx.theme().muted)
             .border_r_1()
             .border_color(cx.theme().border)
-            .child(
-                div()
-                    .h_flex()
-                    .gap_2()
-                    .items_center()
-                    .py_3()
-                    .child(
-                        div()
-                            .w(px(30.))
-                            .h(px(30.))
-                            .rounded_lg()
-                            .bg(rgb(0xe84848))
-                            .text_color(rgb(0xffffff))
-                            .flex()
-                            .items_center()
-                            .justify_center()
-                            .child("▶"),
-                    )
-                    .child(div().font_bold().text_base().child("拾光")),
-            )
-            .child(
-                div().v_flex().gap_2().child(eyebrow(cx, "工作空间")).child(
-                    div()
-                        .h_flex()
-                        .justify_between()
-                        .px_3()
-                        .py_2()
-                        .rounded_lg()
-                        .bg(cx.theme().background)
-                        .text_sm()
-                        .font_semibold()
-                        .child("↓  下载工作台")
-                        .child("1"),
-                ),
-            )
-            .child(div().flex_1())
-            .child(
-                div()
-                    .v_flex()
-                    .gap_2()
-                    .p_3()
-                    .rounded_lg()
-                    .border_1()
-                    .border_color(cx.theme().border)
-                    .child(div().text_xs().font_semibold().child("本地运行 · 隐私优先"))
-                    .child(muted(cx, "不登录账户，不读取 Cookie"))
-                    .child(muted(cx, "当前为单任务开发预览")),
-            )
-            .child(muted(cx, "SHIGUANG / 0.1"))
+            .child(div().py_4().font_bold().text_lg().child("▶  拾光"));
+        for (id, label, page) in [
+            ("tasks", "下载任务", Page::Tasks),
+            ("new", "新建下载", Page::New),
+            ("profiles", "下载配置", Page::Profiles),
+        ] {
+            nav = nav.child(
+                Button::new(id)
+                    .label(label)
+                    .disabled(self.busy && page != Page::Tasks)
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        this.page = page;
+                        cx.notify();
+                    })),
+            );
+        }
+        nav.child(div().flex_1()).child(muted(cx, "开发预览 0.1"))
     }
-    fn status_bar(&self, cx: &Context<Self>) -> Div {
+    fn toolbar(&self, cx: &Context<Self>) -> Div {
+        let title = match self.page {
+            Page::Tasks => "下载任务",
+            Page::New => "新建下载",
+            Page::Profiles => "下载配置",
+            Page::Confirm => "确认下载",
+        };
         div()
             .h_flex()
             .items_center()
             .justify_between()
-            .px_4()
-            .py_2()
-            .border_t_1()
+            .px_6()
+            .py_4()
+            .border_b_1()
             .border_color(cx.theme().border)
-            .bg(cx.theme().muted)
-            .child(muted(cx, self.health.clone()))
-            .child(muted(cx, "仅下载您拥有权利的内容"))
+            .child(div().font_semibold().child(title))
+            .child(
+                Button::new("add")
+                    .primary()
+                    .label("＋ 新建下载")
+                    .disabled(self.busy)
+                    .on_click(cx.listener(|this, _, _, cx| {
+                        this.page = Page::New;
+                        cx.notify();
+                    })),
+            )
     }
 }

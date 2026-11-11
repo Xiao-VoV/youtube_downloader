@@ -1,9 +1,12 @@
 //! Synchronous yt-dlp adapter. Run blocking methods off the UI thread, or use
 //! `spawn_probe` / `spawn_download`. No shell is used to launch media tools.
 mod artifacts;
-mod commands;
 mod engine;
 mod pipes;
+mod plan;
+mod profile;
+pub use plan::CommandPlan;
+pub use profile::*;
 mod process;
 mod protocol;
 mod tools;

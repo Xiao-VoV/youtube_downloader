@@ -11,9 +11,15 @@ impl Engine {
         Self { tools, config }
     }
     pub fn probe(&self, url: &str, cancel: &CancelToken) -> Result<MediaInfo> {
-        let url = normalize_url(url)?;
-        let mut cmd = self.command()?;
-        cmd.args(["--skip-download", "--dump-single-json", "--", &url]);
+        self.probe_with_profile(url, &DownloadProfile::default(), cancel)
+    }
+    pub fn probe_with_profile(
+        &self,
+        url: &str,
+        profile: &DownloadProfile,
+        cancel: &CancelToken,
+    ) -> Result<MediaInfo> {
+        let cmd = self.probe_plan(url, profile)?.command();
         let output = process::run(
             cmd,
             &self.config,
@@ -51,8 +57,17 @@ impl Engine {
         cancel: &CancelToken,
         events: Option<&EventSender>,
     ) -> Result<DownloadResult> {
+        self.download_with_profile(request, &DownloadProfile::default(), cancel, events)
+    }
+    pub fn download_with_profile(
+        &self,
+        request: &DownloadRequest,
+        profile: &DownloadProfile,
+        cancel: &CancelToken,
+        events: Option<&EventSender>,
+    ) -> Result<DownloadResult> {
         emit(request, events, EventKind::Starting, false);
-        let result = self.download_inner(request, cancel, events);
+        let result = self.download_inner(request, profile, cancel, events);
         let kind = match &result {
             Ok(result) => EventKind::Completed(result.clone()),
             Err(e) if e.kind == ErrorKind::Cancelled => EventKind::Cancelled,
@@ -64,23 +79,17 @@ impl Engine {
     fn download_inner(
         &self,
         request: &DownloadRequest,
+        profile: &DownloadProfile,
         cancel: &CancelToken,
         events: Option<&EventSender>,
     ) -> Result<DownloadResult> {
-        let url = normalize_url(&request.url)?;
-        if request.format_id.as_ref().is_some_and(|s| {
-            s.is_empty()
-                || !s
-                    .bytes()
-                    .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-' | b'.' | b'+'))
-        }) {
-            return Err(EngineError::new(
-                ErrorKind::InvalidRequest,
-                "invalid format selector",
-            ));
+        let plan = self.download_plan(request, profile)?;
+        let mut effective = request.clone();
+        if let Some(root) = &profile.output_dir {
+            effective.output_dir = root.clone();
         }
-        let attempt = crate::artifacts::prepare_attempt(request)?;
-        let cmd = self.download_command(request, &attempt, &url)?;
+        let attempt = crate::artifacts::prepare_attempt(&effective)?;
+        let cmd = plan.command();
         let mut protocol = crate::protocol::DownloadProtocol::default();
         process::run(
             cmd,
@@ -93,11 +102,20 @@ impl Engine {
         crate::artifacts::validate_artifacts(protocol.paths, &attempt)
     }
     pub fn spawn_download(&self, request: DownloadRequest) -> EngineJob<DownloadResult> {
+        self.spawn_download_with_profile(request, DownloadProfile::default())
+    }
+    pub fn spawn_download_with_profile(
+        &self,
+        request: DownloadRequest,
+        profile: DownloadProfile,
+    ) -> EngineJob<DownloadResult> {
         let (tx, events) = mpsc::sync_channel(64);
         let cancel = CancelToken::new();
         let worker_cancel = cancel.clone();
         let engine = self.clone();
-        let handle = thread::spawn(move || engine.download(&request, &worker_cancel, Some(&tx)));
+        let handle = thread::spawn(move || {
+            engine.download_with_profile(&request, &profile, &worker_cancel, Some(&tx))
+        });
         EngineJob {
             events,
             cancel,
@@ -106,12 +124,19 @@ impl Engine {
     }
     /// Probe job uses empty task/attempt ids; its result is available via join.
     pub fn spawn_probe(&self, url: String) -> EngineJob<MediaInfo> {
+        self.spawn_probe_with_profile(url, DownloadProfile::default())
+    }
+    pub fn spawn_probe_with_profile(
+        &self,
+        url: String,
+        profile: DownloadProfile,
+    ) -> EngineJob<MediaInfo> {
         let (tx, events) = mpsc::sync_channel(64);
         let cancel = CancelToken::new();
         let worker_cancel = cancel.clone();
         let engine = self.clone();
         let handle = thread::spawn(move || {
-            let result = engine.probe(&url, &worker_cancel);
+            let result = engine.probe_with_profile(&url, &profile, &worker_cancel);
             drop(tx);
             result
         });

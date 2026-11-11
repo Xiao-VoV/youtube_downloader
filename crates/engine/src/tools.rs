@@ -8,32 +8,6 @@ use std::{
     time::Duration,
 };
 impl Engine {
-    pub(crate) fn command(&self) -> Result<Command> {
-        let mut cmd = Command::new(resolve_tool(&self.tools.yt_dlp)?);
-        // Do not inherit proxy/auth/config controls from the host environment.
-        let path = std::env::var_os("PATH");
-        cmd.env_clear();
-        if let Some(path) = path {
-            cmd.env("PATH", path);
-        }
-        cmd.env("LANG", "C.UTF-8").env("LC_ALL", "C.UTF-8");
-        cmd.args([
-            "--ignore-config",
-            "--no-playlist",
-            "--no-plugin-dirs",
-            "--no-remote-components",
-            "--no-js-runtimes",
-            "--proxy",
-            "",
-        ]);
-        // Clear implicit runtime discovery, then permit only the installed Deno
-        // executable resolved to an absolute path. Never install components.
-        if let Ok(deno) = resolve_tool(Path::new("deno")) {
-            cmd.arg("--js-runtimes")
-                .arg(format!("deno:{}", deno.display()));
-        }
-        Ok(cmd)
-    }
     pub fn health_check(&self, cancel: &CancelToken) -> HealthReport {
         let check = |path: &Path, arg: &str| {
             let resolved = resolve_tool(path);

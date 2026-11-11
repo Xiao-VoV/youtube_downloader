@@ -9,6 +9,9 @@ use youtube_engine::*;
 
 use crate::messages::{Update, error_text};
 pub(crate) struct Downloader {
+    pub(crate) page: crate::settings::Page,
+    pub(crate) settings: crate::settings::Settings,
+    pub(crate) pending: Option<DownloadRequest>,
     pub(crate) url: Entity<InputState>,
     pub(crate) media: Option<MediaInfo>,
     pub(crate) preview_url: String,
@@ -62,19 +65,26 @@ impl Downloader {
             let _ = tx.send_blocking(Update::Health(text));
         });
         Self::listen(rx, cx);
+        let settings = crate::settings::Settings::new(window, cx);
+        let output = settings.profile.output_dir.clone();
+        let mode = settings.profile.mode;
+        let extra_sub = cx.subscribe(&settings.extra, |_, _, _: &InputEvent, cx| cx.notify());
         Self {
+            page: crate::settings::Page::Tasks,
+            settings,
+            pending: None,
             url,
             media: None,
             preview_url: String::new(),
-            mode: Mode::Video,
-            output: None,
+            mode,
+            output,
             status: "选择保存目录，然后粘贴视频链接。".into(),
             health: "正在检查本地工具…".into(),
             busy: false,
             cancel: None,
             artifacts: vec![],
             engine,
-            _subscriptions: vec![sub],
+            _subscriptions: vec![sub, extra_sub],
         }
     }
     pub(crate) fn probe(&mut self, cx: &mut Context<Self>) {
@@ -93,7 +103,9 @@ impl Downloader {
         self.preview_url = url.clone();
         self.media = None;
         self.artifacts.clear();
-        let job = self.engine.spawn_probe(url);
+        let job = self
+            .engine
+            .spawn_probe_with_profile(url, self.settings.snapshot(cx));
         self.cancel = Some(job.cancel.clone());
         self.busy = true;
         self.status = "正在解析视频信息…".into();
@@ -122,14 +134,43 @@ impl Downloader {
                 .unwrap_or_default()
                 .as_nanos()
         );
-        let job = self.engine.spawn_download(DownloadRequest {
+        let request = DownloadRequest {
             url: self.preview_url.clone(),
             mode: self.mode,
             output_dir,
             format_id: None,
             task_id: id.clone(),
             attempt_id: id,
-        });
+        };
+        match self
+            .engine
+            .download_plan(&request, &self.settings.snapshot(cx))
+        {
+            Ok(_) => {
+                self.pending = Some(request);
+                self.page = crate::settings::Page::Confirm;
+            }
+            Err(error) => self.status = error_text(&error),
+        }
+        cx.notify();
+    }
+    pub(crate) fn execute_confirmed(&mut self, cx: &mut Context<Self>) {
+        if self.busy {
+            return;
+        }
+        let Some(request) = self.pending.as_ref() else {
+            return;
+        };
+        let profile = self.settings.snapshot(cx);
+        // Edits on the review page must pass the same planner before spawning.
+        if let Err(error) = self.engine.download_plan(request, &profile) {
+            self.status = error_text(&error);
+            cx.notify();
+            return;
+        }
+        let request = self.pending.take().expect("validated pending request");
+        let job = self.engine.spawn_download_with_profile(request, profile);
+        self.page = crate::settings::Page::Tasks;
         self.cancel = Some(job.cancel.clone());
         self.busy = true;
         self.artifacts.clear();
@@ -157,6 +198,7 @@ impl Downloader {
             Ok(Ok(Some(paths))) => {
                 let _ = this.update(cx, |this, cx| {
                     this.output = paths.into_iter().next();
+                    this.settings.profile.output_dir = this.output.clone();
                     cx.notify();
                 });
             }

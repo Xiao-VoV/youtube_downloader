@@ -2,6 +2,7 @@
 mod app;
 mod bridge;
 mod messages;
+mod settings;
 mod view;
 use app::Downloader;
 use gpui_kit::*;
@@ -16,7 +17,14 @@ fn main() {
             },
             cx,
             |window, cx| {
-                let view = cx.new(|cx| Downloader::new(window, cx));
+                let view = cx.new(|cx| {
+                    let mut app = Downloader::new(window, cx);
+                    // A local deep entry point also permits offline layout smoke tests.
+                    if std::env::args().any(|arg| arg == "--preferences") {
+                        app.page = settings::Page::Profiles;
+                    }
+                    app
+                });
                 let weak = view.downgrade();
                 window.on_window_should_close(cx, move |_, cx| {
                     weak.update(cx, |this, cx| {

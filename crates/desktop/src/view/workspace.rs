@@ -1,182 +1,177 @@
-//! Task canvas: source entry, preview/empty state, and lifecycle feedback.
-use super::{eyebrow, muted};
-use crate::app::Downloader;
-use gpui_kit::component::{button::*, input::Input, *};
-use gpui_kit::*;
-
+//! Focused task list, source workflow, and command review.
+use super::muted;
+use crate::{app::Downloader, settings::Page};
+use gpui_kit::{
+    component::{
+        button::*,
+        input::{Input, Textarea},
+        *,
+    },
+    *,
+};
 impl Downloader {
-    pub(super) fn workspace(&self, cx: &Context<Self>) -> Div {
-        div()
-            .flex_1()
-            .min_w_0()
-            .h_full()
-            .v_flex()
-            .child(
-                div()
-                    .h_flex()
-                    .items_center()
-                    .justify_between()
-                    .px_6()
-                    .py_4()
-                    .border_b_1()
-                    .border_color(cx.theme().border)
-                    .child(
-                        div()
-                            .v_flex()
-                            .gap_1()
-                            .child(div().text_lg().font_semibold().child("下载工作台"))
-                            .child(muted(cx, "从一个链接开始，留住值得收藏的内容。")),
-                    )
-                    .child(muted(
-                        cx,
-                        if self.busy {
-                            "●  任务进行中"
-                        } else {
-                            "○  就绪"
-                        },
-                    )),
-            )
-            .child(
-                div()
-                    .id("workspace-scroll")
-                    .flex_1()
-                    .min_h_0()
-                    .overflow_y_scroll()
-                    .p_6()
-                    .child(
-                        div()
-                            .v_flex()
-                            .gap_6()
-                            .child(self.source_entry(cx))
-                            .child(self.preview(cx))
-                            .child(self.task_feedback(cx)),
-                    ),
-            )
-    }
-    fn source_entry(&self, cx: &Context<Self>) -> Div {
-        div()
-            .v_flex()
-            .gap_3()
-            .child(eyebrow(cx, "01 / 添加视频"))
-            .child(Input::new(&self.url).disabled(self.busy))
-            .child(
-                div()
-                    .h_flex()
-                    .justify_between()
-                    .items_center()
-                    .child(muted(cx, "支持 YouTube 单视频、Shorts 链接"))
-                    .child(
-                        Button::new("parse")
-                            .primary()
-                            .label("解析链接 →")
-                            .disabled(self.busy)
-                            .on_click(cx.listener(|this, _, _, cx| this.probe(cx))),
-                    ),
-            )
-    }
-    fn preview(&self, cx: &Context<Self>) -> Div {
-        let frame = div()
-            .v_flex()
-            .gap_4()
-            .p_5()
-            .rounded_xl()
-            .border_1()
-            .border_color(cx.theme().border);
-        if let Some(info) = &self.media {
-            frame
-                .child(eyebrow(cx, "02 / 视频预览"))
-                .child(
-                    div()
-                        .h_flex()
-                        .gap_4()
-                        .items_center()
-                        .child(
-                            div()
-                                .w(px(70.))
-                                .h(px(70.))
-                                .rounded_lg()
-                                .bg(cx.theme().muted)
-                                .flex()
-                                .items_center()
-                                .justify_center()
-                                .text_2xl()
-                                .child("▶"),
-                        )
-                        .child(
-                            div()
-                                .flex_1()
-                                .min_w_0()
-                                .v_flex()
-                                .gap_2()
-                                .child(div().font_semibold().text_base().child(info.title.clone()))
-                                .child(muted(
-                                    cx,
-                                    format!(
-                                        "{} · {} 个格式",
-                                        info.channel
-                                            .as_deref()
-                                            .or(info.uploader.as_deref())
-                                            .unwrap_or("未知频道"),
-                                        info.formats.len()
-                                    ),
-                                )),
-                        ),
-                )
-                .child(muted(cx, "链接已解析 · 在右侧确认保存选项后开始下载"))
-        } else {
-            frame.child(
+    pub(super) fn tasks(&self, cx: &Context<Self>) -> Div {
+        let mut body = div().v_flex().gap_4();
+        if self.media.is_none() && !self.busy && self.artifacts.is_empty() {
+            return body.child(
                 div()
                     .v_flex()
                     .items_center()
-                    .justify_center()
-                    .py_8()
-                    .gap_3()
+                    .py_20()
+                    .gap_4()
                     .child(
                         div()
-                            .w(px(56.))
-                            .h(px(56.))
-                            .rounded_xl()
-                            .bg(cx.theme().muted)
-                            .flex()
-                            .items_center()
-                            .justify_center()
                             .text_2xl()
                             .text_color(cx.theme().muted_foreground)
                             .child("↓"),
                     )
-                    .child(
-                        div()
-                            .text_base()
-                            .font_semibold()
-                            .child("您的下一个收藏，在这里开始"),
-                    )
-                    .child(muted(cx, "粘贴链接并解析，视频信息将在此显示。"))
-                    .child(muted(cx, "无需账户 · 不读取 Cookie")),
-            )
+                    .child(muted(cx, "暂无下载任务")),
+            );
         }
-    }
-    fn task_feedback(&self, cx: &Context<Self>) -> Div {
-        let mut panel = div().v_flex().gap_3().child(eyebrow(cx, "任务动态")).child(
+        body = body.child(
             div()
+                .h_flex()
+                .justify_between()
                 .p_4()
+                .border_1()
+                .border_color(cx.theme().border)
                 .rounded_lg()
-                .bg(cx.theme().muted)
-                .v_flex()
-                .gap_2()
-                .child(div().text_sm().font_medium().child(self.status.clone()))
-                .child(muted(cx, "完成状态以进程退出和最终文件验证为准。")),
+                .child(
+                    div()
+                        .v_flex()
+                        .gap_2()
+                        .child(
+                            self.media
+                                .as_ref()
+                                .map(|m| m.title.clone())
+                                .unwrap_or("正在解析…".into()),
+                        )
+                        .child(muted(cx, self.status.clone())),
+                )
+                .child(
+                    Button::new("stop")
+                        .label("取消")
+                        .disabled(!self.busy)
+                        .on_click(cx.listener(|this, _, _, cx| {
+                            if let Some(cancel) = &this.cancel {
+                                cancel.cancel();
+                                this.status = "正在停止…".into();
+                                cx.notify();
+                            }
+                        })),
+                ),
         );
-        for (index, artifact) in self.artifacts.iter().enumerate() {
-            let path = artifact.path.clone();
-            panel = panel.child(
-                Button::new(("artifact", index))
-                    .label(format!(
-                        "在 Finder 中显示 · {}",
-                        path.file_name().unwrap_or_default().to_string_lossy()
-                    ))
+        for (i, a) in self.artifacts.iter().enumerate() {
+            let path = a.path.clone();
+            body = body.child(
+                Button::new(("reveal", i))
+                    .label("在 Finder 中显示")
                     .on_click(move |_, _, cx| cx.reveal_path(&path)),
             );
         }
-        panel
+        body
+    }
+    pub(super) fn new_download(&self, cx: &Context<Self>) -> Div {
+        let mut body = div()
+            .v_flex()
+            .gap_5()
+            .max_w(px(680.))
+            .child(div().text_sm().child("视频链接"))
+            .child(Input::new(&self.url).disabled(self.busy))
+            .child(self.preset_switcher(cx))
+            .child(
+                div()
+                    .h_flex()
+                    .gap_3()
+                    .child(
+                        Button::new("parse")
+                            .label("解析链接")
+                            .disabled(self.busy)
+                            .on_click(cx.listener(|this, _, _, cx| this.probe(cx))),
+                    )
+                    .child(
+                        Button::new("edit-profile")
+                            .label("编辑下载配置")
+                            .disabled(self.busy)
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                this.page = Page::Profiles;
+                                cx.notify();
+                            })),
+                    ),
+            );
+        if let Some(info) = &self.media {
+            body = body
+                .child(
+                    div()
+                        .p_4()
+                        .rounded_lg()
+                        .bg(cx.theme().muted)
+                        .v_flex()
+                        .gap_2()
+                        .child(div().font_semibold().child(info.title.clone()))
+                        .child(muted(cx, info.channel.clone().unwrap_or_default())),
+                )
+                .child(
+                    Button::new("review")
+                        .primary()
+                        .label("下一步：查看命令")
+                        .disabled(self.busy)
+                        .on_click(cx.listener(|this, _, _, cx| this.download(cx))),
+                );
+        }
+        body
+    }
+    pub(super) fn confirmation(&self, cx: &Context<Self>) -> Div {
+        let plan = self
+            .pending
+            .as_ref()
+            .and_then(|r| {
+                self.engine
+                    .download_plan(r, &self.settings.snapshot(cx))
+                    .ok()
+            })
+            .map(|p| p.display_redacted());
+        let valid = plan.is_some();
+        let command = plan.unwrap_or_else(|| "配置无效，请检查高级参数或返回修改".into());
+        div()
+            .v_flex()
+            .gap_4()
+            .child(div().text_sm().child("下载命令"))
+            .child(
+                div()
+                    .p_4()
+                    .rounded_lg()
+                    .bg(cx.theme().muted)
+                    .text_xs()
+                    .child(command.clone()),
+            )
+            .child(muted(cx, "认证信息已隐藏 · 参数按 argv 执行，不经过 shell"))
+            .child(Textarea::new(&self.settings.extra).h(px(120.)))
+            .child(muted(cx, "高级参数：每行一个参数或值；可在确认前调整。"))
+            .child(
+                div()
+                    .h_flex()
+                    .gap_3()
+                    .child(
+                        Button::new("execute")
+                            .primary()
+                            .label("确认下载")
+                            .disabled(self.busy || !valid)
+                            .on_click(cx.listener(|this, _, _, cx| this.execute_confirmed(cx))),
+                    )
+                    .child(
+                        Button::new("copy")
+                            .label("复制命令")
+                            .on_click(move |_, _, cx| {
+                                cx.write_to_clipboard(ClipboardItem::new_string(command.clone()))
+                            }),
+                    )
+                    .child(Button::new("back").label("返回").on_click(cx.listener(
+                        |this, _, _, cx| {
+                            this.page = Page::New;
+                            cx.notify();
+                        },
+                    ))),
+            )
     }
 }

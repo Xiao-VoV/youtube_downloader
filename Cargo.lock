@@ -8059,6 +8059,7 @@ version = "0.1.0"
 dependencies = [
  "async-channel",
  "gpui-kit",
+ "serde_json",
  "youtube-engine",
 ]
 
