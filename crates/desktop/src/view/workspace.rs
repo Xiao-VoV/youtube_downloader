@@ -121,6 +121,77 @@ impl Downloader {
         }
         body
     }
+    fn download_summary(&self, cx: &Context<Self>) -> Div {
+        let profile = self.settings.snapshot(cx);
+        let quality = if self.mode != youtube_engine::Mode::Video {
+            "音频".into()
+        } else if profile.best_resolution {
+            "最佳可用分辨率".into()
+        } else {
+            format!("最高 {}p", profile.max_height)
+        };
+        let format = match self.mode {
+            youtube_engine::Mode::Video => match profile.container {
+                youtube_engine::VideoContainer::Mp4 => "MP4 · H.264/AAC",
+                youtube_engine::VideoContainer::Mkv => "MKV",
+            },
+            youtube_engine::Mode::Audio => "原始音频",
+            youtube_engine::Mode::MP3 => "MP3",
+        };
+        let cookies = profile
+            .cookies_browser
+            .map(|b| {
+                format!(
+                    "{b:?} · {}",
+                    profile.browser_profile.as_deref().unwrap_or("默认 Profile")
+                )
+            })
+            .unwrap_or("不使用".into());
+        let mut card = div()
+            .v_flex()
+            .gap_3()
+            .p_4()
+            .border_1()
+            .border_color(cx.theme().border)
+            .rounded_lg();
+        for (label, value) in [
+            (
+                "视频",
+                self.media
+                    .as_ref()
+                    .map(|m| m.title.clone())
+                    .unwrap_or_default(),
+            ),
+            ("输出", format!("{format} / {quality}")),
+            (
+                "保存到",
+                self.output
+                    .as_ref()
+                    .map(|p| p.display().to_string())
+                    .unwrap_or_default(),
+            ),
+            (
+                "代理",
+                if profile.proxy.is_some() {
+                    "已启用（地址隐藏）"
+                } else {
+                    "直连"
+                }
+                .into(),
+            ),
+            ("Cookie", cookies),
+            ("高级参数", format!("{} 个参数项", profile.extra_args.len())),
+        ] {
+            card = card.child(
+                div()
+                    .h_flex()
+                    .gap_4()
+                    .child(muted(cx, label).w(px(80.)))
+                    .child(div().text_sm().child(value)),
+            );
+        }
+        card
+    }
     pub(super) fn confirmation(&self, cx: &Context<Self>) -> Div {
         let plan = self
             .pending
@@ -130,24 +201,47 @@ impl Downloader {
                     .download_plan(r, &self.settings.snapshot(cx))
                     .ok()
             })
-            .map(|p| p.display_redacted());
+            .map(|p| p.display_redacted_multiline());
         let valid = plan.is_some();
         let command = plan.unwrap_or_else(|| "配置无效，请检查高级参数或返回修改".into());
+        let mut details = div().v_flex().gap_3().child(
+            Button::new("command-toggle")
+                .label(if self.settings.command_open {
+                    "▾ 完整命令与高级参数"
+                } else {
+                    "▸ 完整命令与高级参数"
+                })
+                .on_click(cx.listener(|this, _, _, cx| {
+                    this.settings.command_open = !this.settings.command_open;
+                    cx.notify();
+                })),
+        );
+        if self.settings.command_open {
+            let mut lines = div()
+                .v_flex()
+                .gap_1()
+                .p_4()
+                .rounded_lg()
+                .bg(cx.theme().muted)
+                .text_xs();
+            for line in command.lines() {
+                lines = lines.child(div().child(line.to_owned()));
+            }
+            details = details
+                .child(lines)
+                .child(Textarea::new(&self.settings.extra).h(px(100.)))
+                .child(muted(cx, "高级参数每行一个参数或值；认证信息已隐藏。"));
+        }
         div()
             .v_flex()
             .gap_4()
-            .child(div().text_sm().child("下载命令"))
-            .child(
-                div()
-                    .p_4()
-                    .rounded_lg()
-                    .bg(cx.theme().muted)
-                    .text_xs()
-                    .child(command.clone()),
-            )
-            .child(muted(cx, "认证信息已隐藏 · 参数按 argv 执行，不经过 shell"))
-            .child(Textarea::new(&self.settings.extra).h(px(120.)))
-            .child(muted(cx, "高级参数：每行一个参数或值；可在确认前调整。"))
+            .child(self.download_summary(cx))
+            .child(if valid {
+                muted(cx, "参数校验通过")
+            } else {
+                muted(cx, "配置无效，请检查高级参数")
+            })
+            .child(details)
             .child(
                 div()
                     .h_flex()

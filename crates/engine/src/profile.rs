@@ -35,8 +35,11 @@ pub struct DownloadProfile {
     /// Preset UI selection. Execution uses the immutable request.mode snapshot.
     pub mode: crate::Mode,
     pub cookies_browser: Option<BrowserCookies>,
+    /// Plain browser profile name or path; yt-dlp cookie grammar delimiters forbidden.
+    pub browser_profile: Option<String>,
     pub proxy: Option<String>,
     pub max_height: u16,
+    pub best_resolution: bool,
     pub container: VideoContainer,
     pub output_dir: Option<PathBuf>,
     /// Tokenized argv, not a shell string. Unknown flags fail closed.
@@ -47,8 +50,10 @@ impl Default for DownloadProfile {
         Self {
             mode: crate::Mode::Video,
             cookies_browser: None,
+            browser_profile: None,
             proxy: None,
             max_height: 1080,
+            best_resolution: false,
             container: VideoContainer::Mp4,
             output_dir: None,
             extra_args: Vec::new(),

@@ -38,6 +38,13 @@ impl Downloader {
                                 cx,
                             )
                         });
+                        this.settings.browser_profile.update(cx, |s, cx| {
+                            s.set_value(
+                                preset.profile.browser_profile.clone().unwrap_or_default(),
+                                window,
+                                cx,
+                            )
+                        });
                         this.settings.extra.update(cx, |s, cx| {
                             s.set_value(preset.profile.extra_args.join("\n"), window, cx)
                         });
@@ -124,13 +131,28 @@ impl Downloader {
             .v_flex()
             .gap_2()
             .child(div().text_sm().child("分辨率上限"));
-        let mut heights = div().h_flex().gap_2();
+        let mut heights = div().h_flex().gap_2().flex_wrap().child(
+            Button::new("best-resolution")
+                .label(if self.settings.profile.best_resolution {
+                    "✓ 最佳可用"
+                } else {
+                    "最佳可用"
+                })
+                .on_click(cx.listener(|this, _, _, cx| {
+                    this.settings.profile.best_resolution = true;
+                    this.media = None;
+                    cx.notify();
+                })),
+        );
+
         for height in [480, 720, 1080, 1440, 2160] {
             heights = heights.child(
                 Button::new(("height", height as usize))
                     .label(format!(
                         "{}{}p",
-                        if self.settings.profile.max_height == height {
+                        if !self.settings.profile.best_resolution
+                            && self.settings.profile.max_height == height
+                        {
                             "✓ "
                         } else {
                             ""
@@ -138,6 +160,7 @@ impl Downloader {
                         height
                     ))
                     .on_click(cx.listener(move |this, _, _, cx| {
+                        this.settings.profile.best_resolution = false;
                         this.settings.profile.max_height = height;
                         this.media = None;
                         cx.notify();
@@ -201,12 +224,21 @@ impl Downloader {
                     })),
             );
         }
-        div()
+        let mut section = div()
             .v_flex()
             .gap_2()
-            .child(div().text_sm().child("浏览器 Cookie（解析和下载均使用）"))
-            .child(row)
-            .child(muted(cx, "仅在您选择后由 yt-dlp 读取；可能触发系统授权。"))
+            .child(div().text_sm().child("浏览器 Cookie"))
+            .child(row);
+        if self.settings.profile.cookies_browser.is_some() {
+            section = section
+                .child(div().text_xs().child("浏览器 Profile（留空使用默认选择）"))
+                .child(Input::new(&self.settings.browser_profile))
+                .child(muted(
+                    cx,
+                    "例如 Default、Profile 1 或配置目录路径；可能触发系统授权。",
+                ));
+        }
+        section
     }
     fn save_preset(&mut self, cx: &mut Context<Self>) {
         let name = self.settings.name.read(cx).value().trim().to_owned();

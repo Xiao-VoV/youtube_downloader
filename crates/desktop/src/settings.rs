@@ -22,6 +22,8 @@ pub(crate) struct Settings {
     pub store: ProfileStore,
     pub profile: DownloadProfile,
     pub advanced_open: bool,
+    pub command_open: bool,
+    pub browser_profile: Entity<InputState>,
     pub name: Entity<InputState>,
     pub proxy: Entity<InputState>,
     pub extra: Entity<TextareaState>,
@@ -40,6 +42,8 @@ impl Settings {
         };
         Self {
             name: input(name, cx),
+            browser_profile: input(profile.browser_profile.as_deref().unwrap_or(""), cx),
+            command_open: false,
             proxy: input(profile.proxy.as_deref().unwrap_or(""), cx),
             extra: cx.new(|cx| {
                 TextareaState::new(window, cx).default_value(profile.extra_args.join("\n"))
@@ -53,6 +57,13 @@ impl Settings {
         let mut profile = self.profile.clone();
         let proxy = self.proxy.read(cx).value().trim().to_owned();
         profile.proxy = (!proxy.is_empty()).then_some(proxy);
+        let browser_profile = self.browser_profile.read(cx).value().trim().to_owned();
+        profile.browser_profile =
+            if profile.cookies_browser.is_some() && !browser_profile.is_empty() {
+                Some(browser_profile)
+            } else {
+                None
+            };
         // One argv token per line: no shell parsing, substitutions or expansions.
         profile.extra_args = self
             .extra
