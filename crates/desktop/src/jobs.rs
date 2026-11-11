@@ -6,6 +6,7 @@ use youtube_engine::*;
 
 pub(crate) struct ActiveDownload {
     pub title: String,
+    pub tool_path: std::path::PathBuf,
     pub title_scroll: ScrollHandle,
     pub status: String,
     pub cancel: CancelToken,
@@ -65,6 +66,12 @@ impl Downloader {
             id.clone(),
             ActiveDownload {
                 title,
+                tool_path: self
+                    .tools
+                    .effective
+                    .as_ref()
+                    .map(|p| p.yt_dlp.clone())
+                    .unwrap_or_default(),
                 title_scroll: ScrollHandle::new(),
                 record,
                 status: tr("准备下载…"),

@@ -30,6 +30,27 @@ fn translate(source: &str, language: Language) -> &str {
         .unwrap_or(source)
 }
 const CATALOG: &[(&str, &str)] = &[
+    ("本地工具配置", "Local tools"),
+    ("当前生效路径", "Effective path"),
+    ("确认重新发现", "Confirm rediscovery"),
+    ("重新发现", "Discover again"),
+    ("检查输入路径", "Check draft paths"),
+    ("保存并应用", "Save and apply"),
+    ("应用托管的 yt-dlp", "App-managed yt-dlp"),
+    ("仅下载安装，不切换", "Install only; do not switch"),
+    ("暂无托管版本", "No managed versions"),
+    ("使用此版本", "Use this version"),
+    ("删除版本", "Delete version"),
+    ("已安装，尚未切换", "Installed; not activated"),
+    ("托管版本已删除", "Managed version deleted"),
+    (
+        "再次点击重新发现以替换输入框；当前生效工具不变。",
+        "Click again to replace draft paths. Effective tools stay unchanged.",
+    ),
+    (
+        "已重新发现，请检查后保存应用。",
+        "Discovered paths filled. Check, then save and apply.",
+    ),
     (
         "粘贴 YouTube 视频链接，例如 https://youtu.be/…",
         "Paste a YouTube video link, e.g. https://youtu.be/…",

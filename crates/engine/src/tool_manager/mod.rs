@@ -3,6 +3,7 @@
 #[cfg(test)]
 mod tests;
 mod transport;
+mod versions;
 use crate::{resolve_tool, ToolPaths};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -13,6 +14,7 @@ use std::{
     sync::atomic::{AtomicU64, Ordering},
 };
 use transport::{HttpsTransport, Transport};
+pub use versions::ManagedVersion;
 pub type ManagerResult<T> = std::result::Result<T, String>;
 fn failure(message: &str) -> String {
     format!("Tool manager: {message}")
@@ -107,6 +109,13 @@ impl ToolManager {
             return Err(failure("managed install supports macOS only"));
         }
         self.install_with(release, &HttpsTransport)
+    }
+    /// Download and verify a version without selecting it for future tasks.
+    pub fn install_only(&self, release: &ReleaseInfo) -> ManagerResult<PathBuf> {
+        if !cfg!(target_os = "macos") {
+            return Err(failure("managed install supports macOS only"));
+        }
+        self.install_only_with(release, &HttpsTransport)
     }
     pub fn revert(&self) -> ManagerResult<PathBuf> {
         let marker = self
@@ -214,6 +223,19 @@ impl ToolManager {
         release: &ReleaseInfo,
         transport: &impl Transport,
     ) -> ManagerResult<PathBuf> {
+        let old = self.marker()?;
+        let binary = self.install_only_with(release, transport)?;
+        self.write_marker(&Marker {
+            active: release.version.clone(),
+            previous: old.map(|m| m.active),
+        })?;
+        Ok(binary)
+    }
+    fn install_only_with(
+        &self,
+        release: &ReleaseInfo,
+        transport: &impl Transport,
+    ) -> ManagerResult<PathBuf> {
         let expected = release_info(&release.version)?;
         if release.asset_url != expected.asset_url || release.checksum_url != expected.checksum_url
         {
@@ -239,10 +261,6 @@ impl ToolManager {
             .map_err(|_| failure("version directory exists or cannot be created"))?;
         let binary = self.binary(&release.version);
         atomic_file(&binary, &bytes, true)?;
-        self.write_marker(&Marker {
-            active: release.version.clone(),
-            previous: old.map(|m| m.active),
-        })?;
         Ok(binary)
     }
 }

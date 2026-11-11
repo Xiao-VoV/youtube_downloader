@@ -30,15 +30,19 @@ impl Downloader {
             Update::Tools(result) => {
                 self.tools.busy = false;
                 match result {
-                    Ok((engine, release, status)) => {
-                        if let Some(engine) = engine {
+                    Ok(out) => {
+                        if let Some(engine) = out.engine {
                             self.engine = engine;
-                            self.health = status.clone();
+                            self.health = out.status.clone();
                         }
-                        if release.is_some() {
-                            self.tools.release = release;
+                        if out.paths.is_some() {
+                            self.tools.effective = out.paths;
                         }
-                        self.tools.status = status;
+                        if out.release.is_some() {
+                            self.tools.release = out.release;
+                        }
+                        self.tools.versions = out.versions;
+                        self.tools.status = out.status;
                     }
                     Err(error) => self.tools.status = error,
                 }
@@ -132,6 +136,7 @@ mod tests {
                 id.to_owned(),
                 ActiveDownload {
                     title: id.into(),
+                    tool_path: Default::default(),
                     title_scroll: gpui_kit::ScrollHandle::new(),
                     status: "ready".into(),
                     cancel: CancelToken::new(),

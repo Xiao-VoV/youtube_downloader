@@ -51,11 +51,12 @@ impl Downloader {
                 cx.notify();
             }
         });
-        let tools = crate::tool_settings::ToolSettings::new(window, cx);
+        let mut tools = crate::tool_settings::ToolSettings::new(window, cx);
         let discovered = ToolManager::default_root()
             .ok()
             .and_then(|root| ToolManager::new(root).resolve(&tools.paths(cx)).ok())
             .map(|r| r.paths);
+        tools.effective = discovered.clone();
         let engine = Engine::new(
             discovered.unwrap_or_else(|| ToolPaths {
                 yt_dlp: PathBuf::from("/nonexistent/yt-dlp"),

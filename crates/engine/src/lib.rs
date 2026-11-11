@@ -15,7 +15,8 @@ mod protocol;
 mod tool_manager;
 mod tools;
 pub use tool_manager::{
-    CustomToolPaths, ManagerResult, ReleaseInfo, ResolvedTools, ToolManager, ToolSource,
+    CustomToolPaths, ManagedVersion, ManagerResult, ReleaseInfo, ResolvedTools, ToolManager,
+    ToolSource,
 };
 mod types;
 mod urls;

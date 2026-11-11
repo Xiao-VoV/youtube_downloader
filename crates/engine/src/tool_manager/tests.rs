@@ -1,4 +1,60 @@
 use super::*;
+#[test]
+fn install_only_activate_list_and_safe_remove() {
+    let f = Fixture::new();
+    let manager = ToolManager::new(f.0.clone());
+    let one = release_info("2026.01.01").unwrap();
+    let two = release_info("2026.02.02").unwrap();
+    let first = manager.install_only_with(&one, &fake()).unwrap();
+    assert!(manager.marker().unwrap().is_none());
+    assert!(!manager.installed_versions().unwrap()[0].active);
+    manager.activate(&one.version).unwrap();
+    let second = manager.install_only_with(&two, &fake()).unwrap();
+    assert_eq!(manager.marker().unwrap().unwrap().active, one.version);
+    assert!(manager.remove_version(&one.version, &[]).is_err());
+    assert!(manager
+        .remove_version(&two.version, &[second.clone()])
+        .is_err());
+    manager.activate(&two.version).unwrap();
+    assert_eq!(
+        manager.marker().unwrap().unwrap().previous,
+        Some(one.version.clone())
+    );
+    assert_eq!(
+        manager
+            .installed_versions()
+            .unwrap()
+            .iter()
+            .filter(|v| v.active)
+            .count(),
+        1
+    );
+    manager.remove_version(&one.version, &[]).unwrap();
+    assert!(!first.exists());
+    assert!(second.exists());
+    assert!(manager.marker().unwrap().unwrap().previous.is_none());
+}
+#[test]
+fn removal_rejects_unknown_files_and_nonexecutables() {
+    let f = Fixture::new();
+    let manager = ToolManager::new(f.0.clone());
+    let release = release_info("2026.01.01").unwrap();
+    let path = manager.install_only_with(&release, &fake()).unwrap();
+    let unknown = path.parent().unwrap().join("do-not-delete");
+    fs::write(&unknown, b"user data").unwrap();
+    assert!(manager.remove_version(&release.version, &[]).is_err());
+    assert!(path.exists() && unknown.exists());
+    assert!(manager.activate(&release.version).is_err());
+    fs::remove_file(unknown).unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o600)).unwrap();
+        assert!(manager.activate(&release.version).is_err());
+        assert!(manager.remove_version(&release.version, &[]).is_err());
+    }
+}
+
 struct Fake {
     payload: Vec<u8>,
     bad_checksum: bool,
