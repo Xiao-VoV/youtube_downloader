@@ -30,6 +30,34 @@ fn translate(source: &str, language: Language) -> &str {
         .unwrap_or(source)
 }
 const CATALOG: &[(&str, &str)] = &[
+    (
+        "粘贴 YouTube 视频链接，例如 https://youtu.be/…",
+        "Paste a YouTube video link, e.g. https://youtu.be/…",
+    ),
+    (
+        "选择保存目录，然后粘贴视频链接。",
+        "Choose a save location, then paste a video link.",
+    ),
+    ("正在检查本地工具…", "Checking local tools…"),
+    ("正在解析视频信息…", "Analyzing video…"),
+    ("请先选择保存目录。", "Choose a save location first."),
+    (
+        "历史已有此视频，请先确认重新下载。",
+        "This video is in history. Confirm downloading again.",
+    ),
+    (
+        "已有 3 个活动下载，请等待任务结束后确认。",
+        "Three downloads are active. Wait for a task to finish.",
+    ),
+    (
+        "任务已启动，可继续新建下载或编辑配置。",
+        "Download started. You can create another task or edit presets.",
+    ),
+    ("选择下载保存目录", "Choose download folder"),
+    (
+        "无法打开目录选择器，请重试。",
+        "Cannot open folder picker. Try again.",
+    ),
     ("外观", "Appearance"),
     ("跟随系统", "System"),
     ("浅色", "Light"),

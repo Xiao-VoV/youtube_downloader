@@ -1,4 +1,5 @@
 //! Window state and user actions. No blocking process calls on the UI thread.
+use crate::i18n::tr;
 use gpui_kit::component::input::{InputEvent, InputState};
 use gpui_kit::*;
 use std::{
@@ -42,7 +43,7 @@ impl Downloader {
         crate::preferences::apply(appearance, window, cx);
         let url = cx.new(|cx| {
             InputState::new(window, cx)
-                .placeholder("粘贴 YouTube 视频链接，例如 https://youtu.be/…")
+                .placeholder(tr("粘贴 YouTube 视频链接，例如 https://youtu.be/…"))
         });
         let sub = cx.subscribe(&url, |this, _, event: &InputEvent, cx| {
             if matches!(event, InputEvent::Change) {
@@ -56,13 +57,11 @@ impl Downloader {
             .and_then(|root| ToolManager::new(root).resolve(&tools.paths(cx)).ok())
             .map(|r| r.paths);
         let engine = Engine::new(
-            discovered
-                .or_else(|| ToolPaths::discover().ok())
-                .unwrap_or_else(|| ToolPaths {
-                    yt_dlp: PathBuf::from("/nonexistent/yt-dlp"),
-                    ffmpeg: None,
-                    ffprobe: None,
-                }),
+            discovered.unwrap_or_else(|| ToolPaths {
+                yt_dlp: PathBuf::from("/nonexistent/yt-dlp"),
+                ffmpeg: None,
+                ffprobe: None,
+            }),
             EngineConfig::default(),
         );
         let (tx, rx) = async_channel::bounded(16);
@@ -113,8 +112,8 @@ impl Downloader {
             preview_url: String::new(),
             mode,
             output,
-            status: "选择保存目录，然后粘贴视频链接。".into(),
-            health: "正在检查本地工具…".into(),
+            status: tr("选择保存目录，然后粘贴视频链接。"),
+            health: tr("正在检查本地工具…"),
             busy: false,
             cancel: None,
             artifacts: vec![],
@@ -143,7 +142,7 @@ impl Downloader {
             .spawn_probe_with_profile(url, self.settings.snapshot(cx));
         self.cancel = Some(job.cancel.clone());
         self.busy = true;
-        self.status = "正在解析视频信息…".into();
+        self.status = tr("正在解析视频信息…");
         let (tx, rx) = async_channel::bounded(16);
         std::thread::spawn(move || {
             while job.events.recv().is_ok() {}
@@ -157,7 +156,7 @@ impl Downloader {
             return;
         }
         let Some(output_dir) = self.output.clone() else {
-            self.status = "请先选择保存目录。".into();
+            self.status = tr("请先选择保存目录。");
             cx.notify();
             return;
         };
@@ -204,7 +203,7 @@ impl Downloader {
                 .iter()
                 .any(|r| crate::duplicates::same_video(&r.url, &request.url))
         {
-            self.status = "历史已有此视频，请先确认重新下载。".into();
+            self.status = tr("历史已有此视频，请先确认重新下载。");
             cx.notify();
             return;
         }
@@ -218,13 +217,13 @@ impl Downloader {
         let request = self.pending.take().expect("validated pending request");
         if self.running.len() >= 3 {
             self.pending = Some(request);
-            self.status = "已有 3 个活动下载，请等待任务结束后确认。".into();
+            self.status = tr("已有 3 个活动下载，请等待任务结束后确认。");
             cx.notify();
             return;
         }
         self.launch_download(request, profile, cx);
         self.page = crate::settings::Page::Tasks;
-        self.status = "任务已启动，可继续新建下载或编辑配置。".into();
+        self.status = tr("任务已启动，可继续新建下载或编辑配置。");
         cx.notify();
     }
     pub(crate) fn choose_directory(&mut self, cx: &mut Context<Self>) {
@@ -232,7 +231,7 @@ impl Downloader {
             files: false,
             directories: true,
             multiple: false,
-            prompt: Some("选择下载保存目录".into()),
+            prompt: Some(tr("选择下载保存目录").into()),
         });
         cx.spawn(async move |this, cx| match picker.await {
             Ok(Ok(Some(paths))) => {
@@ -245,7 +244,7 @@ impl Downloader {
             Ok(Ok(None)) => {}
             _ => {
                 let _ = this.update(cx, |this, cx| {
-                    this.status = "无法打开目录选择器，请重试。".into();
+                    this.status = tr("无法打开目录选择器，请重试。");
                     cx.notify();
                 });
             }

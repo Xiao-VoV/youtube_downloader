@@ -106,7 +106,8 @@ impl Downloader {
                     })),
             );
         }
-        nav.child(div().flex_1()).child(muted(cx, "开发预览 0.1"))
+        nav.child(div().flex_1())
+            .child(muted(cx, crate::i18n::tr("开发预览 0.1")))
     }
     fn software_settings(&self, cx: &Context<Self>) -> Div {
         use crate::preferences::Appearance;
