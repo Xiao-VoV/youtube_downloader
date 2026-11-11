@@ -7,6 +7,7 @@ use gpui_kit::{
 mod help;
 mod history;
 mod profiles;
+mod tools;
 mod workspace;
 
 pub(super) fn muted(cx: &Context<Downloader>, text: impl Into<SharedString>) -> Div {
@@ -135,11 +136,7 @@ impl Downloader {
             );
         }
         let mut panel = div().v_flex().gap_4().max_w(px(680.)).child(choices);
-        for (label, value) in [
-            ("语言", "简体中文 · 多语言待实现"),
-            ("yt-dlp 路径", "自动发现 · 手动配置待实现"),
-            ("FFmpeg / ffprobe", "自动发现 · 手动配置待实现"),
-        ] {
+        for (label, value) in [("语言", "简体中文 · 多语言待实现")] {
             panel = panel.child(
                 div()
                     .h_flex()
@@ -151,7 +148,7 @@ impl Downloader {
                     .child(muted(cx, value)),
             );
         }
-        panel.child(muted(cx, self.health.clone()))
+        panel.child(self.tool_controls(cx))
     }
     fn toolbar(&self, cx: &Context<Self>) -> Div {
         let title = match self.page {

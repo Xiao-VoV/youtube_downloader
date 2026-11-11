@@ -11,6 +11,7 @@ use crate::messages::{Update, error_text};
 pub(crate) struct Downloader {
     pub(crate) page: crate::settings::Page,
     pub(crate) appearance: crate::preferences::Appearance,
+    pub(crate) tools: crate::tool_settings::ToolSettings,
     pub(crate) settings: crate::settings::Settings,
     pub(crate) pending: Option<DownloadRequest>,
     pub(crate) duplicate_confirmed: bool,
@@ -48,12 +49,19 @@ impl Downloader {
                 cx.notify();
             }
         });
+        let tools = crate::tool_settings::ToolSettings::new(window, cx);
+        let discovered = ToolManager::default_root()
+            .ok()
+            .and_then(|root| ToolManager::new(root).resolve(&tools.paths(cx)).ok())
+            .map(|r| r.paths);
         let engine = Engine::new(
-            ToolPaths::discover().unwrap_or_else(|_| ToolPaths {
-                yt_dlp: PathBuf::from("/nonexistent/yt-dlp"),
-                ffmpeg: None,
-                ffprobe: None,
-            }),
+            discovered
+                .or_else(|| ToolPaths::discover().ok())
+                .unwrap_or_else(|| ToolPaths {
+                    yt_dlp: PathBuf::from("/nonexistent/yt-dlp"),
+                    ffmpeg: None,
+                    ffprobe: None,
+                }),
             EngineConfig::default(),
         );
         let (tx, rx) = async_channel::bounded(16);
@@ -88,6 +96,7 @@ impl Downloader {
         Self {
             page: crate::settings::Page::New,
             appearance,
+            tools,
             settings,
             pending: None,
             duplicate_confirmed: false,

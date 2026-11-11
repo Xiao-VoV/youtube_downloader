@@ -26,6 +26,22 @@ impl Downloader {
     fn apply_update(&mut self, update: Update) {
         match update {
             Update::Health(text) => self.health = text,
+            Update::Tools(result) => {
+                self.tools.busy = false;
+                match result {
+                    Ok((engine, release, status)) => {
+                        if let Some(engine) = engine {
+                            self.engine = engine;
+                            self.health = status.clone();
+                        }
+                        if release.is_some() {
+                            self.tools.release = release;
+                        }
+                        self.tools.status = status;
+                    }
+                    Err(error) => self.tools.status = error,
+                }
+            }
             Update::Preview(result) => {
                 self.busy = false;
                 self.cancel = None;

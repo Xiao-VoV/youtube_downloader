@@ -9,6 +9,7 @@ mod messages;
 mod preferences;
 mod preset_actions;
 mod settings;
+mod tool_settings;
 mod view;
 use app::Downloader;
 use gpui_kit::*;
