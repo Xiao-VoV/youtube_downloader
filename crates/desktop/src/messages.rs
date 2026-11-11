@@ -5,7 +5,7 @@ pub(crate) enum Update {
     Health(String),
     Preview(youtube_engine::Result<MediaInfo>),
     Event(EngineEvent),
-    Finished(youtube_engine::Result<DownloadResult>),
+    Finished(String, youtube_engine::Result<DownloadResult>),
 }
 pub(crate) fn error_text(error: &EngineError) -> String {
     let label = match error.kind {

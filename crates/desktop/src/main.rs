@@ -1,7 +1,10 @@
 //! Native application bootstrap.
 mod app;
 mod bridge;
+mod history;
+mod jobs;
 mod messages;
+mod preset_actions;
 mod settings;
 mod view;
 use app::Downloader;
@@ -22,13 +25,18 @@ fn main() {
                     // A local deep entry point also permits offline layout smoke tests.
                     if std::env::args().any(|arg| arg == "--preferences") {
                         app.page = settings::Page::Profiles;
+                    } else if std::env::args().any(|arg| arg == "--history") {
+                        app.page = settings::Page::History;
                     }
                     app
                 });
                 let weak = view.downgrade();
                 window.on_window_should_close(cx, move |_, cx| {
                     weak.update(cx, |this, cx| {
-                        if this.busy {
+                        if this.busy || !this.running.is_empty() {
+                            for task in this.running.values() {
+                                task.cancel.cancel();
+                            }
                             if let Some(cancel) = &this.cancel {
                                 cancel.cancel();
                             }

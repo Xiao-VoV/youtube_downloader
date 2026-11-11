@@ -17,7 +17,29 @@ impl Downloader {
             let preset = preset.clone();
             row = row.child(
                 Button::new(("preset", i))
-                    .label(preset.name.clone())
+                    .label(format!(
+                        "{}{}",
+                        if self.settings.store.active_preset_id.as_ref() == Some(&preset.id) {
+                            "✓ "
+                        } else {
+                            ""
+                        },
+                        preset.name
+                    ))
+                    .bg(
+                        if self.settings.store.active_preset_id.as_ref() == Some(&preset.id) {
+                            cx.theme().muted
+                        } else {
+                            cx.theme().background
+                        },
+                    )
+                    .border_color(
+                        if self.settings.store.active_preset_id.as_ref() == Some(&preset.id) {
+                            cx.theme().foreground
+                        } else {
+                            cx.theme().border
+                        },
+                    )
                     .disabled(self.busy)
                     .on_click(cx.listener(move |this, _, window, cx| {
                         this.mode = preset.profile.mode;
@@ -96,6 +118,27 @@ impl Downloader {
                             .primary()
                             .label("另存为配置")
                             .on_click(cx.listener(|this, _, _, cx| this.save_preset(cx))),
+                    )
+                    .child(
+                        Button::new("update-preset")
+                            .label("保存修改")
+                            .disabled(self.settings.store.active_preset_id.is_none())
+                            .on_click(cx.listener(|this, _, _, cx| this.update_preset(cx))),
+                    )
+                    .child(
+                        Button::new("delete-preset")
+                            .label(
+                                if self.settings.delete_candidate
+                                    == self.settings.store.active_preset_id
+                                    && self.settings.delete_candidate.is_some()
+                                {
+                                    "确认删除配置"
+                                } else {
+                                    "删除配置"
+                                },
+                            )
+                            .disabled(self.settings.store.active_preset_id.is_none())
+                            .on_click(cx.listener(|this, _, _, cx| this.delete_preset(cx))),
                     )
                     .child(Button::new("use").label("应用并返回").on_click(cx.listener(
                         |this, _, _, cx| {
@@ -239,38 +282,5 @@ impl Downloader {
                 ));
         }
         section
-    }
-    fn save_preset(&mut self, cx: &mut Context<Self>) {
-        let name = self.settings.name.read(cx).value().trim().to_owned();
-        if name.is_empty() {
-            self.status = "请输入配置名称".into();
-            cx.notify();
-            return;
-        }
-        let mut profile = self.settings.snapshot(cx);
-        profile.mode = self.mode;
-        let id = format!(
-            "preset-{}-{}",
-            std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_nanos()
-        );
-        let mut store = self.settings.store.clone();
-        store.presets.push(Preset {
-            id: id.clone(),
-            name,
-            profile,
-        });
-        store.active_preset_id = Some(id);
-        match crate::settings::save(&store) {
-            Ok(()) => {
-                self.settings.store = store;
-                self.status = "配置已保存".into();
-            }
-            Err(e) => self.status = e,
-        }
-        cx.notify();
     }
 }

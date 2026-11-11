@@ -12,6 +12,8 @@ pub(crate) struct Downloader {
     pub(crate) page: crate::settings::Page,
     pub(crate) settings: crate::settings::Settings,
     pub(crate) pending: Option<DownloadRequest>,
+    pub(crate) running: std::collections::BTreeMap<String, crate::jobs::ActiveDownload>,
+    pub(crate) history: crate::history::History,
     pub(crate) url: Entity<InputState>,
     pub(crate) media: Option<MediaInfo>,
     pub(crate) preview_url: String,
@@ -73,6 +75,8 @@ impl Downloader {
             page: crate::settings::Page::Tasks,
             settings,
             pending: None,
+            running: Default::default(),
+            history: crate::history::History::load(),
             url,
             media: None,
             preview_url: String::new(),
@@ -169,22 +173,15 @@ impl Downloader {
             return;
         }
         let request = self.pending.take().expect("validated pending request");
-        let job = self.engine.spawn_download_with_profile(request, profile);
+        if self.running.len() >= 3 {
+            self.pending = Some(request);
+            self.status = "已有 3 个活动下载，请等待任务结束后确认。".into();
+            cx.notify();
+            return;
+        }
+        self.launch_download(request, profile, cx);
         self.page = crate::settings::Page::Tasks;
-        self.cancel = Some(job.cancel.clone());
-        self.busy = true;
-        self.artifacts.clear();
-        self.status = "准备下载…".into();
-        let (tx, rx) = async_channel::bounded(16);
-        std::thread::spawn(move || {
-            while let Ok(event) = job.events.recv() {
-                if tx.send_blocking(Update::Event(event)).is_err() {
-                    job.cancel.cancel();
-                }
-            }
-            let _ = tx.send_blocking(Update::Finished(job.join()));
-        });
-        Self::listen(rx, cx);
+        self.status = "任务已启动，可继续新建下载或编辑配置。".into();
         cx.notify();
     }
     pub(crate) fn choose_directory(&mut self, cx: &mut Context<Self>) {

@@ -13,6 +13,7 @@ use youtube_engine::*;
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Page {
     Tasks,
+    History,
     New,
     Profiles,
     Confirm,
@@ -23,6 +24,7 @@ pub(crate) struct Settings {
     pub profile: DownloadProfile,
     pub advanced_open: bool,
     pub command_open: bool,
+    pub delete_candidate: Option<String>,
     pub browser_profile: Entity<InputState>,
     pub name: Entity<InputState>,
     pub proxy: Entity<InputState>,
@@ -44,6 +46,7 @@ impl Settings {
             name: input(name, cx),
             browser_profile: input(profile.browser_profile.as_deref().unwrap_or(""), cx),
             command_open: false,
+            delete_candidate: None,
             proxy: input(profile.proxy.as_deref().unwrap_or(""), cx),
             extra: cx.new(|cx| {
                 TextareaState::new(window, cx).default_value(profile.extra_args.join("\n"))

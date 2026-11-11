@@ -4,6 +4,7 @@ use gpui_kit::{
     component::{button::*, *},
     *,
 };
+mod history;
 mod profiles;
 mod workspace;
 
@@ -37,6 +38,7 @@ impl Render for Downloader {
                             .p_6()
                             .child(match self.page {
                                 Page::Tasks => self.tasks(cx),
+                                Page::History => self.history_view(cx),
                                 Page::New => self.new_download(cx),
                                 Page::Profiles => self.profile_editor(cx),
                                 Page::Confirm => self.confirmation(cx),
@@ -68,6 +70,7 @@ impl Downloader {
             .child(div().py_4().font_bold().text_lg().child("▶  拾光"));
         for (id, label, page) in [
             ("tasks", "下载任务", Page::Tasks),
+            ("history", "下载历史", Page::History),
             ("new", "新建下载", Page::New),
             ("profiles", "下载配置", Page::Profiles),
         ] {
@@ -86,6 +89,7 @@ impl Downloader {
     fn toolbar(&self, cx: &Context<Self>) -> Div {
         let title = match self.page {
             Page::Tasks => "下载任务",
+            Page::History => "下载历史",
             Page::New => "新建下载",
             Page::Profiles => "下载配置",
             Page::Confirm => "确认下载",

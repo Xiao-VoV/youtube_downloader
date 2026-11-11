@@ -1,6 +1,7 @@
-//! Bounded engine-to-UI bridge. Terminal results are applied only after process cleanup.
+//! Route by task identity; a completed download never mutates a different draft.
 use crate::{
     app::Downloader,
+    history::HistoryStatus,
     messages::{Update, error_text},
 };
 use gpui_kit::*;
@@ -11,54 +12,7 @@ impl Downloader {
             while let Ok(update) = rx.recv().await {
                 if this
                     .update(cx, |this, cx| {
-                        match update {
-                            Update::Health(text) => this.health = text,
-                            Update::Preview(result) => {
-                                this.busy = false;
-                                this.cancel = None;
-                                match result {
-                                    Ok(info) => {
-                                        this.status = "解析完成，请确认内容和保存方式。".into();
-                                        this.media = Some(info);
-                                    }
-                                    Err(error) => this.status = error_text(&error),
-                                }
-                            }
-                            Update::Event(event) => match event.kind {
-                                EventKind::Starting => this.status = "正在启动下载…".into(),
-                                EventKind::Progress(p) => {
-                                    let total =
-                                        p.total_bytes.or(p.total_bytes_estimate).filter(|n| *n > 0);
-                                    this.status = match (p.downloaded_bytes, total) {
-                                        (Some(done), Some(total)) => format!(
-                                            "正在下载 · {:.1}% · {:.1} MB",
-                                            (done as f64 / total as f64 * 100.).min(100.),
-                                            done as f64 / 1e6
-                                        ),
-                                        (Some(done), _) => format!(
-                                            "正在下载 · {:.1} MB · 总大小未知",
-                                            done as f64 / 1e6
-                                        ),
-                                        _ => "正在下载 · 正在获取进度…".into(),
-                                    };
-                                }
-                                EventKind::PostProcessing => {
-                                    this.status = "正在合并或转换 · 请稍候…".into()
-                                }
-                                _ => {}
-                            },
-                            Update::Finished(result) => {
-                                this.busy = false;
-                                this.cancel = None;
-                                match result {
-                                    Ok(result) => {
-                                        this.artifacts = result.artifacts;
-                                        this.status = "下载完成，文件已验证。".into();
-                                    }
-                                    Err(error) => this.status = error_text(&error),
-                                }
-                            }
-                        }
+                        this.apply_update(update);
                         cx.notify();
                     })
                     .is_err()
@@ -68,5 +22,187 @@ impl Downloader {
             }
         })
         .detach();
+    }
+    fn apply_update(&mut self, update: Update) {
+        match update {
+            Update::Health(text) => self.health = text,
+            Update::Preview(result) => {
+                self.busy = false;
+                self.cancel = None;
+                match result {
+                    Ok(info) => {
+                        self.status = "解析完成".into();
+                        self.media = Some(info);
+                    }
+                    Err(e) => self.status = error_text(&e),
+                }
+            }
+            Update::Event(event) => {
+                route_event(&mut self.running, event);
+            }
+            Update::Finished(id, result) => {
+                if let Some(task) = self.running.remove(&id) {
+                    let record = finish_record(task.record.clone(), result);
+                    if let Err(e) = self.history.upsert(record.clone()) {
+                        self.status = format!("历史保存失败：{e}");
+                        // Preserve the completed result in this session even if disk is unavailable.
+                        self.history.entries.retain(|r| r.id != record.id);
+                        self.history.entries.push(record);
+                    }
+                }
+            }
+        }
+    }
+}
+fn route_event(
+    tasks: &mut std::collections::BTreeMap<String, crate::jobs::ActiveDownload>,
+    event: EngineEvent,
+) {
+    if event.task_id != event.attempt_id {
+        return;
+    }
+    if let Some(task) = tasks.get_mut(&event.task_id) {
+        task.status = match event.kind {
+            EventKind::Starting => "正在启动…".into(),
+            EventKind::PostProcessing => "正在合并或转换…".into(),
+            EventKind::Progress(p) => progress_text(p),
+            _ => return,
+        };
+    }
+}
+fn finish_record(
+    mut record: crate::history::HistoryEntry,
+    result: youtube_engine::Result<DownloadResult>,
+) -> crate::history::HistoryEntry {
+    record.finished_at = Some(crate::jobs::now());
+    match result {
+        Ok(output) => {
+            record.status = HistoryStatus::Succeeded;
+            record.artifacts = output.artifacts;
+        }
+        Err(e) => {
+            record.status = if e.kind == ErrorKind::Cancelled {
+                HistoryStatus::Cancelled
+            } else {
+                HistoryStatus::Failed
+            }
+        }
+    }
+    record
+}
+#[cfg(test)]
+mod tests {
+    use super::{finish_record, route_event};
+    use crate::history::{HistoryEntry, HistoryStatus};
+    use youtube_engine::{DownloadResult, EngineError, ErrorKind};
+    #[test]
+    fn concurrent_events_and_cancellation_are_isolated() {
+        use crate::jobs::ActiveDownload;
+        use youtube_engine::{CancelToken, EngineEvent, EventKind};
+        let mut tasks = std::collections::BTreeMap::new();
+        for id in ["one", "two"] {
+            tasks.insert(
+                id.to_owned(),
+                ActiveDownload {
+                    title: id.into(),
+                    status: "ready".into(),
+                    cancel: CancelToken::new(),
+                    record: HistoryEntry {
+                        id: id.into(),
+                        title: id.into(),
+                        url: "https://youtu.be/abcdefghijk".into(),
+                        started_at: 0,
+                        finished_at: None,
+                        status: HistoryStatus::Running,
+                        artifacts: vec![],
+                    },
+                },
+            );
+        }
+        route_event(
+            &mut tasks,
+            EngineEvent {
+                task_id: "one".into(),
+                attempt_id: "one".into(),
+                kind: EventKind::PostProcessing,
+            },
+        );
+        assert_ne!(tasks["one"].status, "ready");
+        assert_eq!(tasks["two"].status, "ready");
+        tasks["one"].cancel.cancel();
+        assert!(!tasks["two"].cancel.is_cancelled());
+        let current = tasks["one"].status.clone();
+        route_event(
+            &mut tasks,
+            EngineEvent {
+                task_id: "one".into(),
+                attempt_id: "old".into(),
+                kind: EventKind::Starting,
+            },
+        );
+        assert_eq!(tasks["one"].status, current);
+        tasks.remove("one");
+        route_event(
+            &mut tasks,
+            EngineEvent {
+                task_id: "one".into(),
+                attempt_id: "one".into(),
+                kind: EventKind::Starting,
+            },
+        );
+        assert_eq!(tasks.len(), 1);
+        assert_eq!(tasks["two"].status, "ready");
+    }
+    #[test]
+    fn completion_preserves_task_identity_and_isolated_records() {
+        let entry = HistoryEntry {
+            id: "first".into(),
+            title: "视频一".into(),
+            url: "https://youtu.be/abcdefghijk".into(),
+            started_at: 1,
+            finished_at: None,
+            status: HistoryStatus::Running,
+            artifacts: vec![],
+        };
+        let mut other = entry.clone();
+        other.id = "second".into();
+        let done = finish_record(entry.clone(), Ok(DownloadResult { artifacts: vec![] }));
+        assert_eq!(done.id, "first");
+        assert_eq!(done.title, "视频一");
+        assert_eq!(done.status, HistoryStatus::Succeeded);
+        assert!(done.finished_at.is_some());
+        assert_eq!(other.id, "second");
+        assert_eq!(other.status, HistoryStatus::Running);
+        assert!(other.finished_at.is_none());
+        assert_eq!(
+            finish_record(
+                entry.clone(),
+                Err(EngineError::new(ErrorKind::Cancelled, "cancel"))
+            )
+            .status,
+            HistoryStatus::Cancelled
+        );
+        assert_eq!(
+            finish_record(
+                entry,
+                Err(EngineError::new(ErrorKind::ProcessFailed, "failure"))
+            )
+            .status,
+            HistoryStatus::Failed
+        );
+    }
+}
+fn progress_text(p: Progress) -> String {
+    match (
+        p.downloaded_bytes,
+        p.total_bytes.or(p.total_bytes_estimate).filter(|n| *n > 0),
+    ) {
+        (Some(done), Some(total)) => format!(
+            "下载中 · {:.1}% · {:.1} MB",
+            (done as f64 / total as f64 * 100.).min(100.),
+            done as f64 / 1e6
+        ),
+        (Some(done), _) => format!("下载中 · {:.1} MB", done as f64 / 1e6),
+        _ => "正在下载…".into(),
     }
 }

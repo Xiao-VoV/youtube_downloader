@@ -11,62 +11,36 @@ use gpui_kit::{
 };
 impl Downloader {
     pub(super) fn tasks(&self, cx: &Context<Self>) -> Div {
-        let mut body = div().v_flex().gap_4();
-        if self.media.is_none() && !self.busy && self.artifacts.is_empty() {
-            return body.child(
+        let mut body = div().v_flex().gap_3();
+        if self.running.is_empty() {
+            return body.child(muted(cx, "暂无活动任务 · 已完成任务见下载历史"));
+        }
+        for (index, (id, task)) in self.running.iter().enumerate() {
+            let id = id.clone();
+            body = body.child(
                 div()
-                    .v_flex()
-                    .items_center()
-                    .py_20()
-                    .gap_4()
+                    .h_flex()
+                    .justify_between()
+                    .p_4()
+                    .border_1()
+                    .border_color(cx.theme().border)
+                    .rounded_lg()
                     .child(
                         div()
-                            .text_2xl()
-                            .text_color(cx.theme().muted_foreground)
-                            .child("↓"),
+                            .v_flex()
+                            .gap_2()
+                            .child(task.title.clone())
+                            .child(muted(cx, task.status.clone())),
                     )
-                    .child(muted(cx, "暂无下载任务")),
-            );
-        }
-        body = body.child(
-            div()
-                .h_flex()
-                .justify_between()
-                .p_4()
-                .border_1()
-                .border_color(cx.theme().border)
-                .rounded_lg()
-                .child(
-                    div()
-                        .v_flex()
-                        .gap_2()
-                        .child(
-                            self.media
-                                .as_ref()
-                                .map(|m| m.title.clone())
-                                .unwrap_or("正在解析…".into()),
-                        )
-                        .child(muted(cx, self.status.clone())),
-                )
-                .child(
-                    Button::new("stop")
-                        .label("取消")
-                        .disabled(!self.busy)
-                        .on_click(cx.listener(|this, _, _, cx| {
-                            if let Some(cancel) = &this.cancel {
-                                cancel.cancel();
-                                this.status = "正在停止…".into();
-                                cx.notify();
+                    .child(Button::new(("cancel-task", index)).label("取消").on_click(
+                        cx.listener(move |this, _, _, cx| {
+                            if let Some(task) = this.running.get_mut(&id) {
+                                task.cancel.cancel();
+                                task.status = "正在停止…".into();
                             }
-                        })),
-                ),
-        );
-        for (i, a) in self.artifacts.iter().enumerate() {
-            let path = a.path.clone();
-            body = body.child(
-                Button::new(("reveal", i))
-                    .label("在 Finder 中显示")
-                    .on_click(move |_, _, cx| cx.reveal_path(&path)),
+                            cx.notify();
+                        }),
+                    )),
             );
         }
         body
