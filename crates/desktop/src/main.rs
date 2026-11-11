@@ -6,6 +6,7 @@ mod history;
 mod history_table;
 mod jobs;
 mod messages;
+mod preferences;
 mod preset_actions;
 mod settings;
 mod view;

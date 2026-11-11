@@ -10,6 +10,7 @@ use youtube_engine::*;
 use crate::messages::{Update, error_text};
 pub(crate) struct Downloader {
     pub(crate) page: crate::settings::Page,
+    pub(crate) appearance: crate::preferences::Appearance,
     pub(crate) settings: crate::settings::Settings,
     pub(crate) pending: Option<DownloadRequest>,
     pub(crate) duplicate_confirmed: bool,
@@ -35,6 +36,8 @@ pub(crate) struct Downloader {
 }
 impl Downloader {
     pub(crate) fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
+        let appearance = crate::preferences::load();
+        crate::preferences::apply(appearance, window, cx);
         let url = cx.new(|cx| {
             InputState::new(window, cx)
                 .placeholder("粘贴 YouTube 视频链接，例如 https://youtu.be/…")
@@ -76,9 +79,15 @@ impl Downloader {
         let settings = crate::settings::Settings::new(window, cx);
         let output = settings.profile.output_dir.clone();
         let mode = settings.profile.mode;
+        let appearance_sub = cx.observe_window_appearance(window, |this, window, cx| {
+            if this.appearance == crate::preferences::Appearance::System {
+                crate::preferences::apply(this.appearance, window, cx);
+            }
+        });
         let extra_sub = cx.subscribe(&settings.extra, |_, _, _: &InputEvent, cx| cx.notify());
         Self {
             page: crate::settings::Page::New,
+            appearance,
             settings,
             pending: None,
             duplicate_confirmed: false,
@@ -100,7 +109,7 @@ impl Downloader {
             cancel: None,
             artifacts: vec![],
             engine,
-            _subscriptions: vec![sub, extra_sub],
+            _subscriptions: vec![sub, extra_sub, appearance_sub],
         }
     }
     pub(crate) fn probe(&mut self, cx: &mut Context<Self>) {

@@ -108,9 +108,34 @@ impl Downloader {
         nav.child(div().flex_1()).child(muted(cx, "开发预览 0.1"))
     }
     fn software_settings(&self, cx: &Context<Self>) -> Div {
-        let mut panel = div().v_flex().gap_4().max_w(px(680.));
+        use crate::preferences::Appearance;
+        let mut choices = div().h_flex().gap_2().child(div().text_sm().child("外观"));
+        for (id, label, value) in [
+            ("system", "跟随系统", Appearance::System),
+            ("light", "浅色", Appearance::Light),
+            ("dark", "深色", Appearance::Dark),
+        ] {
+            choices = choices.child(
+                Button::new(id)
+                    .label(format!(
+                        "{}{}",
+                        if self.appearance == value { "✓ " } else { "" },
+                        label
+                    ))
+                    .on_click(cx.listener(move |this, _, window, cx| {
+                        match crate::preferences::save(value) {
+                            Ok(()) => {
+                                this.appearance = value;
+                                crate::preferences::apply(value, window, cx);
+                            }
+                            Err(e) => this.status = e,
+                        };
+                        cx.notify();
+                    })),
+            );
+        }
+        let mut panel = div().v_flex().gap_4().max_w(px(680.)).child(choices);
         for (label, value) in [
-            ("外观", "跟随系统 · 主题切换待实现"),
             ("语言", "简体中文 · 多语言待实现"),
             ("yt-dlp 路径", "自动发现 · 手动配置待实现"),
             ("FFmpeg / ffprobe", "自动发现 · 手动配置待实现"),
