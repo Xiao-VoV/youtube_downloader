@@ -83,10 +83,78 @@ impl Downloader {
         let mut body = div()
             .v_flex()
             .gap_5()
-            .max_w(px(680.))
-            .child(div().text_sm().child("视频链接"))
-            .child(Input::new(&self.url).disabled(self.busy))
-            .child(self.preset_switcher(cx))
+            .max_w(px(760.))
+            .child(
+                div()
+                    .v_flex()
+                    .gap_2()
+                    .py_4()
+                    .child(
+                        div()
+                            .text_xs()
+                            .font_semibold()
+                            .text_color(cx.theme().muted_foreground)
+                            .child("SHIGUANG / 新建任务"),
+                    )
+                    .child(div().text_2xl().font_bold().child("值得收藏，一键留下。"))
+                    .child(muted(cx, "粘贴视频链接，选择你的下载方式。")),
+            )
+            .child(
+                div()
+                    .v_flex()
+                    .gap_4()
+                    .p_6()
+                    .rounded_xl()
+                    .border_1()
+                    .border_color(cx.theme().border)
+                    .bg(cx.theme().muted)
+                    .child(
+                        div()
+                            .h_flex()
+                            .justify_between()
+                            .items_center()
+                            .child(div().font_semibold().child("视频链接"))
+                            .child(
+                                Button::new("paste-url")
+                                    .label("从剪贴板粘贴")
+                                    .disabled(self.busy)
+                                    .on_click(cx.listener(|this, _, window, cx| {
+                                        if let Some(text) =
+                                            cx.read_from_clipboard().and_then(|item| item.text())
+                                        {
+                                            this.url
+                                                .update(cx, |s, cx| s.set_value(text, window, cx));
+                                            this.media = None;
+                                            cx.notify();
+                                        }
+                                    })),
+                            ),
+                    )
+                    .child(Input::new(&self.url).disabled(self.busy)),
+            )
+            .child(
+                div()
+                    .v_flex()
+                    .gap_3()
+                    .child(div().text_sm().font_semibold().child("使用下载配置"))
+                    .child(self.preset_switcher(cx))
+                    .child(muted(
+                        cx,
+                        format!(
+                            "{:?} · {} · {}",
+                            self.mode,
+                            if self.settings.profile.best_resolution {
+                                "最佳可用".into()
+                            } else {
+                                format!("最高 {}p", self.settings.profile.max_height)
+                            },
+                            self.output
+                                .as_ref()
+                                .map(|p| p.display().to_string())
+                                .unwrap_or("尚未选择保存位置".into())
+                        ),
+                    )),
+            )
             .child(
                 div()
                     .h_flex()

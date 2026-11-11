@@ -78,7 +78,7 @@ impl Downloader {
         let mode = settings.profile.mode;
         let extra_sub = cx.subscribe(&settings.extra, |_, _, _: &InputEvent, cx| cx.notify());
         Self {
-            page: crate::settings::Page::Tasks,
+            page: crate::settings::Page::New,
             settings,
             pending: None,
             duplicate_confirmed: false,

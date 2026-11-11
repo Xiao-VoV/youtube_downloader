@@ -98,7 +98,7 @@ impl Downloader {
             .child(Input::new(&self.settings.name))
             .child(self.quality_controls(cx))
             .child(self.cookie_controls(cx))
-            .child(div().text_sm().child("代理 URL（留空直连）"))
+            .child(super::help::label("代理 URL","留空直连；支持 http(s)、socks4/5。含凭据的代理仅本次会话使用。","network-options"))
             .child(Input::new(&self.settings.proxy))
             .child(
                 div()
@@ -118,14 +118,11 @@ impl Downloader {
                             .unwrap_or("未选择".into()),
                     )),
             )
-            .child(div().text_sm().child("文件名模板"))
+            .child(super::help::label("文件名模板","支持 title/id/channel/uploader/extractor。文件名必须以 .%(ext)s 结尾；不允许绝对路径或越界。","output-template"))
             .child(Input::new(&self.settings.filename_template))
-            .child(div().text_sm().child("子目录模板（留空直接保存）"))
+            .child(super::help::label("子目录模板","留空直接保存；示例 %(extractor)s/%(channel)s。只允许安全相对路径。","output-template"))
             .child(Input::new(&self.settings.folder_template))
-            .child(muted(
-                cx,
-                "支持 %(title)s、%(id)s、%(channel)s、%(extractor)s；文件名需以 .%(ext)s 结尾。",
-            ))
+
             .child(self.advanced_controls(cx))
             .child(
                 div()
@@ -188,10 +185,11 @@ impl Downloader {
         section
     }
     fn quality_controls(&self, cx: &Context<Self>) -> Div {
-        let mut row = div()
-            .v_flex()
-            .gap_2()
-            .child(div().text_sm().child("分辨率上限"));
+        let mut row = div().v_flex().gap_2().child(super::help::label(
+            "分辨率上限",
+            "最佳可用不限制高度；MP4仍限定H.264/AAC，MKV允许其他源编码。",
+            "format-selection",
+        ));
         let mut heights = div().h_flex().gap_2().flex_wrap().child(
             Button::new("best-resolution")
                 .label(if self.settings.profile.best_resolution {
@@ -256,7 +254,12 @@ impl Downloader {
                     })),
             );
         }
-        row.child(div().text_sm().child("输出格式")).child(formats)
+        row.child(super::help::label(
+            "输出格式",
+            "MP4兼容编码；MKV保留源编码；原音频不转码；MP3显式转码。",
+            "format-selection",
+        ))
+        .child(formats)
     }
     fn cookie_controls(&self, cx: &Context<Self>) -> Div {
         let mut row = div().h_flex().gap_2().flex_wrap();
@@ -288,16 +291,20 @@ impl Downloader {
         let mut section = div()
             .v_flex()
             .gap_2()
-            .child(div().text_sm().child("浏览器 Cookie"))
+            .child(super::help::label(
+                "浏览器 Cookie",
+                "仅显式选择后读取浏览器Cookie；解析和下载共享选择，可能触发系统授权。",
+                "authentication-options",
+            ))
             .child(row);
         if self.settings.profile.cookies_browser.is_some() {
             section = section
-                .child(div().text_xs().child("浏览器 Profile（留空使用默认选择）"))
-                .child(Input::new(&self.settings.browser_profile))
-                .child(muted(
-                    cx,
-                    "例如 Default、Profile 1 或配置目录路径；可能触发系统授权。",
-                ));
+                .child(super::help::label(
+                    "浏览器 Profile",
+                    "留空默认；可填 Default、Profile 1 或目录路径。不接受复合cookie语法。",
+                    "authentication-options",
+                ))
+                .child(Input::new(&self.settings.browser_profile));
         }
         section
     }

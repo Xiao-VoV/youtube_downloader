@@ -4,6 +4,7 @@ use gpui_kit::{
     component::{button::*, *},
     *,
 };
+mod help;
 mod history;
 mod profiles;
 mod workspace;
