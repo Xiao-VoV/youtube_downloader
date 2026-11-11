@@ -30,10 +30,34 @@ impl Downloader {
             finished_at: None,
             status: crate::history::HistoryStatus::Running,
             artifacts: vec![],
+            metadata: crate::history::HistoryMetadata {
+                source_site: self
+                    .media
+                    .as_ref()
+                    .and_then(|m| m.extractor.clone())
+                    .unwrap_or("youtube".into()),
+                media_id: self
+                    .media
+                    .as_ref()
+                    .map(|m| m.id.clone())
+                    .unwrap_or_default(),
+                channel: self
+                    .media
+                    .as_ref()
+                    .and_then(|m| m.channel.clone().or(m.uploader.clone())),
+                duration: self.media.as_ref().and_then(|m| m.duration),
+                original_url: self.url.read(cx).value().to_string(),
+                requested_height: (!profile.best_resolution).then_some(profile.max_height),
+                best_resolution: profile.best_resolution,
+                requested_format: format!("{:?}/{:?}", request.mode, profile.container),
+                output_dir: Some(request.output_dir.clone()),
+                ..Default::default()
+            },
         };
         if let Err(error) = self.history.upsert(record.clone()) {
             self.status = format!("历史保存失败：{error}");
         }
+        let inspector = self.engine.clone();
         let job = self.engine.spawn_download_with_profile(request, profile);
         self.running.insert(
             id.clone(),
@@ -51,7 +75,13 @@ impl Downloader {
                     job.cancel.cancel();
                 }
             }
-            let _ = tx.send_blocking(Update::Finished(id, job.join()));
+            let result = job.join();
+            let inspection = result
+                .as_ref()
+                .ok()
+                .and_then(|r| r.artifacts.first())
+                .and_then(|a| inspector.inspect_media(&a.path, &CancelToken::new()).ok());
+            let _ = tx.send_blocking(Update::Finished(id, result, inspection));
         });
         Self::listen(rx, cx);
     }

@@ -2,9 +2,12 @@
 //! `spawn_probe` / `spawn_download`. No shell is used to launch media tools.
 mod artifacts;
 mod engine;
+mod inspection;
 mod pipes;
 mod plan;
 mod profile;
+mod templates;
+pub use inspection::MediaInspection;
 pub use plan::CommandPlan;
 pub use profile::*;
 mod process;

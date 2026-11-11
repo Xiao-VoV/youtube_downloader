@@ -65,7 +65,7 @@ fn preview_is_argv_and_redacts_credentials() {
     assert!(d
         .argv
         .iter()
-        .any(|v| v == "/tmp/video output/youtube-attempt"));
+        .any(|v| v == "temp:/tmp/video output/.shiguang-tmp/attempt"));
     assert!(!d.display_redacted().contains("secret"));
     assert!(!format!("{d:?}").contains("secret"));
     assert!(d.display_redacted().contains("[REDACTED]"));
@@ -127,7 +127,7 @@ fn executed_download_matches_preview_exactly() {
     fs::create_dir(&root).unwrap();
     let script = root.join("tool");
     let record = root.join("argv");
-    fs::write(&script, format!("#!/bin/sh\nprintf '%s\\n' \"$@\" > '{}'\nwhile [ \"$#\" -gt 0 ]; do\nif [ \"$1\" = --paths ]; then shift; destination=\"$1\"; fi\nshift\ndone\nprintf data > \"$destination/final.mp4\"\nprintf '__YT_ENGINE_ARTIFACT__\"%s/final.mp4\"\\n' \"$destination\"\n",record.display())).unwrap();
+    fs::write(&script, format!("#!/bin/sh\nprintf '%s\\n' \"$@\" > '{}'\nwhile [ \"$#\" -gt 0 ]; do\nif [ \"$1\" = --paths ]; then shift; case \"$1\" in home:*) destination=\"${{1#home:}}\";; esac; fi\nshift\ndone\nprintf data > \"$destination/final.mp4\"\nprintf '__YT_ENGINE_ARTIFACT__\"%s/final.mp4\"\\n' \"$destination\"\n",record.display())).unwrap();
     fs::set_permissions(&script, fs::Permissions::from_mode(0o700)).unwrap();
     let e = Engine::new(
         ToolPaths {

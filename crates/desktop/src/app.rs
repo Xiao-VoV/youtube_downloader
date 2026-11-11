@@ -12,8 +12,11 @@ pub(crate) struct Downloader {
     pub(crate) page: crate::settings::Page,
     pub(crate) settings: crate::settings::Settings,
     pub(crate) pending: Option<DownloadRequest>,
+    pub(crate) duplicate_confirmed: bool,
     pub(crate) running: std::collections::BTreeMap<String, crate::jobs::ActiveDownload>,
     pub(crate) history: crate::history::History,
+    pub(crate) history_sort: crate::history_table::Sort,
+    pub(crate) history_delete: Option<String>,
     pub(crate) url: Entity<InputState>,
     pub(crate) media: Option<MediaInfo>,
     pub(crate) preview_url: String,
@@ -75,8 +78,11 @@ impl Downloader {
             page: crate::settings::Page::Tasks,
             settings,
             pending: None,
+            duplicate_confirmed: false,
             running: Default::default(),
             history: crate::history::History::load(),
+            history_sort: Default::default(),
+            history_delete: None,
             url,
             media: None,
             preview_url: String::new(),
@@ -152,6 +158,7 @@ impl Downloader {
         {
             Ok(_) => {
                 self.pending = Some(request);
+                self.duplicate_confirmed = false;
                 self.page = crate::settings::Page::Confirm;
             }
             Err(error) => self.status = error_text(&error),
@@ -165,6 +172,17 @@ impl Downloader {
         let Some(request) = self.pending.as_ref() else {
             return;
         };
+        if !self.duplicate_confirmed
+            && self
+                .history
+                .entries
+                .iter()
+                .any(|r| crate::duplicates::same_video(&r.url, &request.url))
+        {
+            self.status = "历史已有此视频，请先确认重新下载。".into();
+            cx.notify();
+            return;
+        }
         let profile = self.settings.snapshot(cx);
         // Edits on the review page must pass the same planner before spawning.
         if let Err(error) = self.engine.download_plan(request, &profile) {

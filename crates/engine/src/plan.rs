@@ -130,16 +130,26 @@ impl Engine {
                 "--progress",
                 "--no-simulate",
                 "--no-overwrites",
-                "--restrict-filenames",
+                "--no-restrict-filenames",
+                "--windows-filenames",
             ]
             .into_iter()
             .map(str::to_owned),
         );
         plan.argv.extend([
             "--paths".into(),
-            attempt.to_string_lossy().into_owned(),
+            format!(
+                "home:{}",
+                attempt
+                    .parent()
+                    .and_then(Path::parent)
+                    .ok_or_else(|| invalid("invalid output root"))?
+                    .display()
+            ),
+            "--paths".into(),
+            format!("temp:{}", attempt.display()),
             "--output".into(),
-            "%(id)s.%(ext)s".into(),
+            crate::templates::output_template(profile)?,
             "--progress-template".into(),
             format!("download:{PROGRESS_PREFIX}%(progress)j"),
             "--progress-template".into(),
@@ -200,7 +210,7 @@ pub(crate) fn planned_attempt(
     if root.to_str().is_none() {
         return Err(invalid("output path must be UTF-8"));
     }
-    Ok(root.join(format!("youtube-{}", request.attempt_id)))
+    Ok(root.join(".shiguang-tmp").join(&request.attempt_id))
 }
 fn video_selector(request: &DownloadRequest, profile: &DownloadProfile) -> Result<String> {
     if let Some(id) = &request.format_id {

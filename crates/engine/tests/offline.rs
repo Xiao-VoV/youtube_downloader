@@ -120,7 +120,7 @@ fn download_validates_after_move_and_emits_scoped_events() {
     let engine = f.engine(
         r#"
 while [ "$#" -gt 0 ]; do
-  if [ "$1" = '--paths' ]; then shift; destination="$1"; fi
+  if [ "$1" = '--paths' ]; then shift; case "$1" in home:*) destination="${1#home:}";; esac; fi
   shift
 done
 printf '%s\n' '__YT_ENGINE_PROGRESS__{"status":"downloading","downloaded_bytes":4}'
@@ -257,7 +257,7 @@ fn symlink_artifact_escape_is_rejected() {
     let engine = f.engine(
         r#"
 while [ "$#" -gt 0 ]; do
-  if [ "$1" = '--paths' ]; then shift; destination="$1"; fi
+  if [ "$1" = '--paths' ]; then shift; case "$1" in home:*) destination="${1#home:}";; esac; fi
   shift
 done
 ln -s /etc/hosts "$destination/final.mp4"

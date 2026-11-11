@@ -67,6 +67,16 @@ impl Downloader {
                                 cx,
                             )
                         });
+                        this.settings.filename_template.update(cx, |s, cx| {
+                            s.set_value(preset.profile.filename_template.clone(), window, cx)
+                        });
+                        this.settings.folder_template.update(cx, |s, cx| {
+                            s.set_value(
+                                preset.profile.folder_template.clone().unwrap_or_default(),
+                                window,
+                                cx,
+                            )
+                        });
                         this.settings.extra.update(cx, |s, cx| {
                             s.set_value(preset.profile.extra_args.join("\n"), window, cx)
                         });
@@ -108,6 +118,14 @@ impl Downloader {
                             .unwrap_or("未选择".into()),
                     )),
             )
+            .child(div().text_sm().child("文件名模板"))
+            .child(Input::new(&self.settings.filename_template))
+            .child(div().text_sm().child("子目录模板（留空直接保存）"))
+            .child(Input::new(&self.settings.folder_template))
+            .child(muted(
+                cx,
+                "支持 %(title)s、%(id)s、%(channel)s、%(extractor)s；文件名需以 .%(ext)s 结尾。",
+            ))
             .child(self.advanced_controls(cx))
             .child(
                 div()

@@ -16,6 +16,7 @@ pub(crate) enum Page {
     History,
     New,
     Profiles,
+    Settings,
     Confirm,
 }
 
@@ -26,6 +27,8 @@ pub(crate) struct Settings {
     pub command_open: bool,
     pub delete_candidate: Option<String>,
     pub browser_profile: Entity<InputState>,
+    pub filename_template: Entity<InputState>,
+    pub folder_template: Entity<InputState>,
     pub name: Entity<InputState>,
     pub proxy: Entity<InputState>,
     pub extra: Entity<TextareaState>,
@@ -44,6 +47,8 @@ impl Settings {
         };
         Self {
             name: input(name, cx),
+            filename_template: input(&profile.filename_template, cx),
+            folder_template: input(profile.folder_template.as_deref().unwrap_or(""), cx),
             browser_profile: input(profile.browser_profile.as_deref().unwrap_or(""), cx),
             command_open: false,
             delete_candidate: None,
@@ -58,6 +63,9 @@ impl Settings {
     }
     pub fn snapshot(&self, cx: &App) -> DownloadProfile {
         let mut profile = self.profile.clone();
+        profile.filename_template = self.filename_template.read(cx).value().to_string();
+        let folder = self.folder_template.read(cx).value().trim().to_owned();
+        profile.folder_template = (!folder.is_empty()).then_some(folder);
         let proxy = self.proxy.read(cx).value().trim().to_owned();
         profile.proxy = (!proxy.is_empty()).then_some(proxy);
         let browser_profile = self.browser_profile.read(cx).value().trim().to_owned();

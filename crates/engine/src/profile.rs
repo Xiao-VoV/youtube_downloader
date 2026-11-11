@@ -42,6 +42,8 @@ pub struct DownloadProfile {
     pub best_resolution: bool,
     pub container: VideoContainer,
     pub output_dir: Option<PathBuf>,
+    pub filename_template: String,
+    pub folder_template: Option<String>,
     /// Tokenized argv, not a shell string. Unknown flags fail closed.
     pub extra_args: Vec<String>,
 }
@@ -56,6 +58,8 @@ impl Default for DownloadProfile {
             best_resolution: false,
             container: VideoContainer::Mp4,
             output_dir: None,
+            filename_template: "%(title).180B [%(id)s].%(ext)s".into(),
+            folder_template: None,
             extra_args: Vec::new(),
         }
     }

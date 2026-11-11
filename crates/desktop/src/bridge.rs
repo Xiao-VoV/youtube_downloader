@@ -40,9 +40,19 @@ impl Downloader {
             Update::Event(event) => {
                 route_event(&mut self.running, event);
             }
-            Update::Finished(id, result) => {
+            Update::Finished(id, result, inspection) => {
                 if let Some(task) = self.running.remove(&id) {
-                    let record = finish_record(task.record.clone(), result);
+                    let mut record = finish_record(task.record.clone(), result);
+                    if let Some(info) = inspection {
+                        record.metadata.width = info.width;
+                        record.metadata.height = info.height;
+                        record.metadata.ext = info.ext;
+                        record.metadata.vcodec = info.vcodec;
+                        record.metadata.acodec = info.acodec;
+                        if info.duration.is_some() {
+                            record.metadata.duration = info.duration;
+                        }
+                    }
                     if let Err(e) = self.history.upsert(record.clone()) {
                         self.status = format!("历史保存失败：{e}");
                         // Preserve the completed result in this session even if disk is unavailable.
@@ -115,6 +125,7 @@ mod tests {
                         finished_at: None,
                         status: HistoryStatus::Running,
                         artifacts: vec![],
+                        metadata: Default::default(),
                     },
                 },
             );
@@ -163,6 +174,7 @@ mod tests {
             finished_at: None,
             status: HistoryStatus::Running,
             artifacts: vec![],
+            metadata: Default::default(),
         };
         let mut other = entry.clone();
         other.id = "second".into();

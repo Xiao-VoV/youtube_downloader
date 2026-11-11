@@ -42,6 +42,7 @@ impl Render for Downloader {
                                 Page::New => self.new_download(cx),
                                 Page::Profiles => self.profile_editor(cx),
                                 Page::Confirm => self.confirmation(cx),
+                                Page::Settings => self.software_settings(cx),
                             }),
                     )
                     .child(
@@ -69,15 +70,34 @@ impl Downloader {
             .border_color(cx.theme().border)
             .child(div().py_4().font_bold().text_lg().child("▶  拾光"));
         for (id, label, page) in [
-            ("tasks", "下载任务", Page::Tasks),
+            ("new", "新建任务", Page::New),
+            ("tasks", "下载队列", Page::Tasks),
             ("history", "下载历史", Page::History),
-            ("new", "新建下载", Page::New),
             ("profiles", "下载配置", Page::Profiles),
+            ("settings", "软件设置", Page::Settings),
         ] {
             nav = nav.child(
                 Button::new(id)
-                    .label(label)
-                    .disabled(self.busy && page != Page::Tasks)
+                    .label(format!(
+                        "{}{}",
+                        if self.page == page || (page == Page::New && self.page == Page::Confirm) {
+                            "▸ "
+                        } else {
+                            ""
+                        },
+                        label
+                    ))
+                    .bg(if self.page == page {
+                        cx.theme().muted
+                    } else {
+                        cx.theme().background
+                    })
+                    .border_color(if self.page == page {
+                        cx.theme().foreground
+                    } else {
+                        cx.theme().border
+                    })
+                    .disabled(self.busy && matches!(page, Page::New | Page::Profiles))
                     .on_click(cx.listener(move |this, _, _, cx| {
                         this.page = page;
                         cx.notify();
@@ -86,13 +106,35 @@ impl Downloader {
         }
         nav.child(div().flex_1()).child(muted(cx, "开发预览 0.1"))
     }
+    fn software_settings(&self, cx: &Context<Self>) -> Div {
+        let mut panel = div().v_flex().gap_4().max_w(px(680.));
+        for (label, value) in [
+            ("外观", "跟随系统 · 主题切换待实现"),
+            ("语言", "简体中文 · 多语言待实现"),
+            ("yt-dlp 路径", "自动发现 · 手动配置待实现"),
+            ("FFmpeg / ffprobe", "自动发现 · 手动配置待实现"),
+        ] {
+            panel = panel.child(
+                div()
+                    .h_flex()
+                    .justify_between()
+                    .p_4()
+                    .border_b_1()
+                    .border_color(cx.theme().border)
+                    .child(div().text_sm().child(label))
+                    .child(muted(cx, value)),
+            );
+        }
+        panel.child(muted(cx, self.health.clone()))
+    }
     fn toolbar(&self, cx: &Context<Self>) -> Div {
         let title = match self.page {
-            Page::Tasks => "下载任务",
+            Page::Tasks => "下载队列",
             Page::History => "下载历史",
             Page::New => "新建下载",
             Page::Profiles => "下载配置",
             Page::Confirm => "确认下载",
+            Page::Settings => "软件设置",
         };
         div()
             .h_flex()

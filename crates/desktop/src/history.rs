@@ -1,18 +1,13 @@
-//! Bounded JSON repository. Keep persistence separate from UI and execution so
-//! a future SQLite implementation can preserve the entry/domain contract.
+//! SQLite metadata repository; UI/execution and credential configuration stay out.
+mod database;
+#[cfg(test)]
+mod tests;
 use serde::{Deserialize, Serialize};
-use std::{
-    fs::{self, OpenOptions},
-    io::{Read, Write},
-    path::{Path, PathBuf},
-    sync::atomic::{AtomicU64, Ordering},
-};
+use std::path::PathBuf;
 use youtube_engine::Artifact;
 
-const MAX_BYTES: u64 = 4 * 1024 * 1024;
-const MAX_ENTRIES: usize = 1000;
-static TEMP_ID: AtomicU64 = AtomicU64::new(0);
-
+pub(super) const MAX_ENTRIES: usize = 1000;
+pub(super) const MAX_BYTES: u64 = 4 * 1024 * 1024;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum HistoryStatus {
     Running,
@@ -21,21 +16,41 @@ pub enum HistoryStatus {
     Cancelled,
     Interrupted,
 }
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct HistoryMetadata {
+    pub source_site: String,
+    pub media_id: String,
+    pub channel: Option<String>,
+    pub duration: Option<f64>,
+    pub original_url: String,
+    pub requested_height: Option<u16>,
+    pub best_resolution: bool,
+    pub requested_format: String,
+    pub output_dir: Option<PathBuf>,
+    pub width: Option<u32>,
+    pub height: Option<u32>,
+    pub ext: Option<String>,
+    pub vcodec: Option<String>,
+    pub acodec: Option<String>,
+}
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct HistoryEntry {
     pub id: String,
     pub title: String,
     pub url: String,
-    /// Unix seconds; no locale-dependent text in persisted records.
+    /// Unix seconds, independent of locale.
     pub started_at: u64,
     pub finished_at: Option<u64>,
     pub status: HistoryStatus,
     pub artifacts: Vec<Artifact>,
+    #[serde(default)]
+    pub metadata: HistoryMetadata,
 }
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct Document {
+pub(super) struct Document {
     version: u32,
     entries: Vec<HistoryEntry>,
 }
@@ -48,15 +63,17 @@ pub struct History {
 }
 impl History {
     pub fn load() -> Self {
-        let Some(home) = std::env::var_os("HOME").filter(|s| !s.is_empty()) else {
-            return Self {
+        match std::env::var_os("HOME").filter(|s| !s.is_empty()) {
+            Some(home) => Self::load_at(
+                PathBuf::from(home).join("Library/Application Support/Shiguang/history.sqlite3"),
+            ),
+            None => Self {
                 entries: Vec::new(),
                 error: Some("History unavailable: HOME is unset".into()),
                 path: None,
                 blocked: true,
-            };
-        };
-        Self::load_at(PathBuf::from(home).join("Library/Application Support/Shiguang/history.json"))
+            },
+        }
     }
     fn load_at(path: PathBuf) -> Self {
         let mut history = Self {
@@ -65,32 +82,46 @@ impl History {
             path: Some(path.clone()),
             blocked: false,
         };
-        match read_entries(&path) {
-            Ok(Some(entries)) => history.entries = entries,
-            Ok(None) => return history,
+        match database::load(&path) {
+            Ok(entries) => history.entries = entries,
             Err(error) => {
-                history.error = Some(error);
-                history.blocked = true;
-                return history;
-            }
-        }
-        let mut changed = false;
-        for entry in &mut history.entries {
-            if entry.status == HistoryStatus::Running {
-                entry.status = HistoryStatus::Interrupted;
-                changed = true;
-            }
-        }
-        if changed {
-            if let Err(error) = history.save_at(&history.entries) {
                 history.error = Some(error);
                 history.blocked = true;
             }
         }
         history
     }
-    /// Transactional in-memory update: a failed disk write does not claim the
-    /// new entry was persisted. Corrupt/unsupported input is never overwritten.
+    /// Remove metadata only, never media files. Commit before changing UI state.
+    pub fn delete(&mut self, id: &str) -> Result<(), String> {
+        if self.blocked {
+            return Err(self
+                .error
+                .clone()
+                .unwrap_or_else(|| "History writes blocked".into()));
+        }
+        if id.is_empty() || id.len() > 256 {
+            return Err("Invalid history ID".into());
+        }
+        if self
+            .entries
+            .iter()
+            .any(|entry| entry.id == id && entry.status == HistoryStatus::Running)
+        {
+            return Err("Cannot delete a running download".into());
+        }
+        let path = self.path.as_ref().ok_or("History path unavailable")?;
+        match database::delete(path, id) {
+            Ok(()) => {
+                self.entries.retain(|entry| entry.id != id);
+                self.error = None;
+                Ok(())
+            }
+            Err(error) => {
+                self.error = Some(error.clone());
+                Err(error)
+            }
+        }
+    }
     pub fn upsert(&mut self, entry: HistoryEntry) -> Result<(), String> {
         if self.blocked {
             return Err(self
@@ -99,228 +130,60 @@ impl History {
                 .unwrap_or_else(|| "History writes blocked".into()));
         }
         validate_entry(&entry)?;
-        let mut entries = self.entries.clone();
-        if let Some(existing) = entries.iter_mut().find(|e| e.id == entry.id) {
-            *existing = entry;
-        } else {
-            entries.push(entry);
-        }
-        if entries.len() > MAX_ENTRIES {
-            return Err("History entry limit reached; existing history preserved".into());
-        }
-        if let Err(error) = self.save_at(&entries) {
-            self.error = Some(error.clone());
-            return Err(error);
-        }
-        self.entries = entries;
-        self.error = None;
-        Ok(())
-    }
-    fn save_at(&self, entries: &[HistoryEntry]) -> Result<(), String> {
         let path = self.path.as_ref().ok_or("History path unavailable")?;
-        // Recheck existing bytes on every save; another process or editor must
-        // not turn damaged evidence into a silent fresh history document.
-        read_entries(path)?;
-        let bytes = serde_json::to_vec(&Document {
-            version: 1,
-            entries: entries.to_vec(),
-        })
-        .map_err(|_| "Cannot encode history")?;
-        if bytes.len() as u64 > MAX_BYTES {
-            return Err("History byte limit reached".into());
+        match database::upsert(path, &entry) {
+            Ok(()) => {
+                if let Some(old) = self.entries.iter_mut().find(|e| e.id == entry.id) {
+                    *old = entry;
+                } else {
+                    self.entries.push(entry);
+                }
+                self.error = None;
+                Ok(())
+            }
+            Err(error) => {
+                self.error = Some(error.clone());
+                Err(error)
+            }
         }
-        atomic_write(path, &bytes)
     }
 }
-fn validate_entry(entry: &HistoryEntry) -> Result<(), String> {
+pub(super) fn validate_entry(entry: &HistoryEntry) -> Result<(), String> {
     if entry.id.is_empty()
         || entry.id.len() > 256
         || entry.title.len() > 16384
         || entry.url.len() > 2048
         || entry.artifacts.len() > 32
+        || entry.started_at > i64::MAX as u64
+        || entry.finished_at.is_some_and(|v| v > i64::MAX as u64)
     {
         return Err("Invalid history entry limits".into());
     }
-    // Persist only canonical public video URLs: no cookies, proxy credentials,
-    // query secrets or tool diagnostics can enter through this field.
     if youtube_engine::normalize_url(&entry.url).ok().as_deref() != Some(entry.url.as_str()) {
-        return Err("History requires a canonical video URL".into());
+        return Err("History requires canonical video URL".into());
     }
-    if entry
-        .artifacts
-        .iter()
-        .any(|a| !a.path.is_absolute() || a.path.as_os_str().len() > 4096)
+    let m = &entry.metadata;
+    if !m.original_url.is_empty()
+        && youtube_engine::normalize_url(&m.original_url)
+            .ok()
+            .as_deref()
+            != Some(entry.url.as_str())
     {
-        return Err("Invalid history artifact path".into());
+        return Err("Invalid original media URL".into());
+    }
+    if m.duration.is_some_and(|v| !v.is_finite() || v < 0.0)
+        || m.output_dir.as_ref().is_some_and(|p| !p.is_absolute())
+    {
+        return Err("Invalid history metadata".into());
+    }
+    if entry.artifacts.iter().any(|a| {
+        !a.path.is_absolute() || a.path.as_os_str().len() > 4096 || a.size > i64::MAX as u64
+    }) {
+        return Err("Invalid artifact metadata".into());
+    }
+    let bytes = serde_json::to_vec(entry).map_err(|_| "Invalid history encoding")?;
+    if bytes.len() > 64 * 1024 {
+        return Err("History entry too large".into());
     }
     Ok(())
-}
-fn read_entries(path: &Path) -> Result<Option<Vec<HistoryEntry>>, String> {
-    let metadata = match fs::symlink_metadata(path) {
-        Ok(m) => m,
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(_) => return Err("Cannot inspect history; writes blocked".into()),
-    };
-    if !metadata.is_file() || metadata.file_type().is_symlink() || metadata.len() > MAX_BYTES {
-        return Err("Unsafe or oversized history; writes blocked".into());
-    }
-    let file = fs::File::open(path).map_err(|_| "Cannot read history; writes blocked")?;
-    let mut bytes = Vec::new();
-    file.take(MAX_BYTES + 1)
-        .read_to_end(&mut bytes)
-        .map_err(|_| "Cannot read history; writes blocked")?;
-    if bytes.len() as u64 > MAX_BYTES {
-        return Err("Oversized history; writes blocked".into());
-    }
-    let doc: Document =
-        serde_json::from_slice(&bytes).map_err(|_| "Damaged history; writes blocked")?;
-    if doc.version != 1 || doc.entries.len() > MAX_ENTRIES {
-        return Err("Unsupported history version or count; writes blocked".into());
-    }
-    let mut ids = std::collections::HashSet::new();
-    for entry in &doc.entries {
-        validate_entry(entry)?;
-        if !ids.insert(&entry.id) {
-            return Err("Duplicate history IDs; writes blocked".into());
-        }
-    }
-    Ok(Some(doc.entries))
-}
-fn atomic_write(path: &Path, bytes: &[u8]) -> Result<(), String> {
-    let parent = path.parent().ok_or("Invalid history path")?;
-    fs::create_dir_all(parent).map_err(|_| "Cannot create history directory")?;
-    if !fs::symlink_metadata(parent)
-        .map_err(|_| "Cannot inspect history directory")?
-        .is_dir()
-    {
-        return Err("Unsafe history directory".into());
-    }
-    let temp = parent.join(format!(
-        ".history-{}-{}.tmp",
-        std::process::id(),
-        TEMP_ID.fetch_add(1, Ordering::Relaxed)
-    ));
-    let mut options = OpenOptions::new();
-    options.write(true).create_new(true);
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::OpenOptionsExt;
-        options.mode(0o600);
-    }
-    let mut file = options
-        .open(&temp)
-        .map_err(|_| "Cannot create private history transaction")?;
-    let result = (|| {
-        file.write_all(bytes).map_err(|_| "Cannot write history")?;
-        file.sync_all().map_err(|_| "Cannot synchronize history")?;
-        fs::rename(&temp, path).map_err(|_| "Cannot commit history")?;
-        Ok(())
-    })();
-    // temp is an exact owned sibling, never derived from a history entry.
-    if result.is_err() {
-        let _ = fs::remove_file(&temp);
-    }
-    result
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    struct Fixture(PathBuf);
-    impl Fixture {
-        fn new() -> Self {
-            let root = std::env::temp_dir().join(format!(
-                "shiguang-history-test-{}-{}",
-                std::process::id(),
-                TEMP_ID.fetch_add(1, Ordering::Relaxed)
-            ));
-            fs::create_dir(&root).unwrap();
-            Self(root)
-        }
-        fn path(&self) -> PathBuf {
-            self.0.join("history.json")
-        }
-    }
-    impl Drop for Fixture {
-        fn drop(&mut self) {
-            assert!(
-                self.0
-                    .file_name()
-                    .unwrap()
-                    .to_string_lossy()
-                    .starts_with("shiguang-history-test-")
-            );
-            let _ = fs::remove_dir_all(&self.0);
-        }
-    }
-    fn entry() -> HistoryEntry {
-        HistoryEntry {
-            id: "one".into(),
-            title: "Video".into(),
-            url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ".into(),
-            started_at: 1,
-            finished_at: None,
-            status: HistoryStatus::Running,
-            artifacts: Vec::new(),
-        }
-    }
-    #[test]
-    fn roundtrip_upsert_and_interrupt() {
-        let f = Fixture::new();
-        let mut h = History::load_at(f.path());
-        h.upsert(entry()).unwrap();
-        let mut loaded = History::load_at(f.path());
-        assert_eq!(loaded.entries[0].status, HistoryStatus::Interrupted);
-        let mut e = entry();
-        e.status = HistoryStatus::Succeeded;
-        e.finished_at = Some(2);
-        loaded.upsert(e).unwrap();
-        assert_eq!(History::load_at(f.path()).entries.len(), 1);
-        assert_eq!(
-            History::load_at(f.path()).entries[0].status,
-            HistoryStatus::Succeeded
-        );
-    }
-    #[test]
-    fn corruption_is_preserved() {
-        let f = Fixture::new();
-        fs::write(f.path(), b"broken").unwrap();
-        let mut h = History::load_at(f.path());
-        assert!(h.error.is_some());
-        assert!(h.upsert(entry()).is_err());
-        assert_eq!(fs::read(f.path()).unwrap(), b"broken");
-    }
-    #[test]
-    fn disk_corruption_after_load_is_not_overwritten() {
-        let f = Fixture::new();
-        let mut h = History::load_at(f.path());
-        fs::write(f.path(), b"broken").unwrap();
-        assert!(h.upsert(entry()).is_err());
-        assert!(h.entries.is_empty());
-        assert_eq!(fs::read(f.path()).unwrap(), b"broken");
-    }
-    #[test]
-    fn limits_reject_without_mutation() {
-        let f = Fixture::new();
-        let mut h = History::load_at(f.path());
-        let mut e = entry();
-        e.title = "x".repeat(16385);
-        assert!(h.upsert(e).is_err());
-        assert!(!f.path().exists());
-    }
-    #[cfg(unix)]
-    #[test]
-    fn private_permissions_and_symlink_rejection() {
-        use std::os::unix::fs::{PermissionsExt, symlink};
-        let f = Fixture::new();
-        let mut h = History::load_at(f.path());
-        h.upsert(entry()).unwrap();
-        assert_eq!(
-            fs::metadata(f.path()).unwrap().permissions().mode() & 0o777,
-            0o600
-        );
-        let link = f.0.join("link.json");
-        symlink(f.path(), &link).unwrap();
-        assert!(History::load_at(link).error.is_some());
-    }
 }

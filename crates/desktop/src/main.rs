@@ -1,7 +1,9 @@
 //! Native application bootstrap.
 mod app;
 mod bridge;
+mod duplicates;
 mod history;
+mod history_table;
 mod jobs;
 mod messages;
 mod preset_actions;
@@ -27,6 +29,8 @@ fn main() {
                         app.page = settings::Page::Profiles;
                     } else if std::env::args().any(|arg| arg == "--history") {
                         app.page = settings::Page::History;
+                    } else if std::env::args().any(|arg| arg == "--settings") {
+                        app.page = settings::Page::Settings;
                     }
                     app
                 });

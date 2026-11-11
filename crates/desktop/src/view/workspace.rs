@@ -28,8 +28,18 @@ impl Downloader {
                     .child(
                         div()
                             .v_flex()
+                            .flex_1()
+                            .min_w_0()
+                            .overflow_hidden()
+                            .mr_4()
                             .gap_2()
-                            .child(task.title.clone())
+                            .child(
+                                div()
+                                    .id(("task-title-scroll", index))
+                                    .w_full()
+                                    .overflow_x_scroll()
+                                    .child(div().whitespace_nowrap().child(task.title.clone())),
+                            )
                             .child(muted(cx, task.status.clone())),
                     )
                     .child(Button::new(("cancel-task", index)).label("取消").on_click(
@@ -176,7 +186,14 @@ impl Downloader {
                     .ok()
             })
             .map(|p| p.display_redacted_multiline());
-        let valid = plan.is_some();
+        let duplicate = self.pending.as_ref().is_some_and(|request| {
+            self.history
+                .entries
+                .iter()
+                .any(|r| crate::duplicates::same_video(&r.url, &request.url))
+        });
+        let plan_valid = plan.is_some();
+        let valid = plan_valid && (!duplicate || self.duplicate_confirmed);
         let command = plan.unwrap_or_else(|| "配置无效，请检查高级参数或返回修改".into());
         let mut details = div().v_flex().gap_3().child(
             Button::new("command-toggle")
@@ -210,8 +227,36 @@ impl Downloader {
             .v_flex()
             .gap_4()
             .child(self.download_summary(cx))
+            .child(if duplicate {
+                div()
+                    .v_flex()
+                    .gap_2()
+                    .p_3()
+                    .bg(cx.theme().muted)
+                    .child(
+                        div()
+                            .text_sm()
+                            .child("下载历史中已存在此视频，是否重新下载？"),
+                    )
+                    .child(
+                        Button::new("confirm-duplicate")
+                            .label(if self.duplicate_confirmed {
+                                "✓ 已确认重新下载"
+                            } else {
+                                "仍然重新下载"
+                            })
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                this.duplicate_confirmed = true;
+                                cx.notify();
+                            })),
+                    )
+            } else {
+                div()
+            })
             .child(if valid {
                 muted(cx, "参数校验通过")
+            } else if plan_valid && duplicate && !self.duplicate_confirmed {
+                muted(cx, "等待确认重新下载")
             } else {
                 muted(cx, "配置无效，请检查高级参数")
             })
