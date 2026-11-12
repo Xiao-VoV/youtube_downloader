@@ -59,7 +59,6 @@ impl Render for Downloader {
                                 Page::Detail => self.draft_detail(cx),
                                 Page::TaskOptions => self.draft_options(cx),
                                 Page::Profiles => self.profile_editor(cx),
-                                Page::Confirm => self.confirmation(cx),
                                 Page::Settings => self.software_settings(cx),
                             }),
                     )
@@ -144,8 +143,7 @@ impl Downloader {
             ("profiles", "下载配置", "sliders-horizontal", Page::Profiles),
         ] {
             let selected = self.page == page
-                || (page == Page::New
-                    && matches!(self.page, Page::Detail | Page::TaskOptions | Page::Confirm));
+                || (page == Page::New && matches!(self.page, Page::Detail | Page::TaskOptions));
             nav = nav.child(
                 div()
                     .id(id)
@@ -180,7 +178,7 @@ impl Downloader {
                             this.refresh_preset_select(window, cx);
                         }
                         if !this.busy || matches!(page, Page::Tasks | Page::History) {
-                            if matches!(this.page, Page::TaskOptions | Page::Confirm) {
+                            if matches!(this.page, Page::TaskOptions) {
                                 this.save_draft_editor(cx);
                             }
                             if page == Page::Profiles {
@@ -202,7 +200,7 @@ impl Downloader {
                     .icon(IconName::Settings)
                     .label(crate::i18n::tr("软件设置"))
                     .on_click(cx.listener(|this, _, _, cx| {
-                        if matches!(this.page, Page::TaskOptions | Page::Confirm) {
+                        if matches!(this.page, Page::TaskOptions) {
                             this.save_draft_editor(cx);
                         }
                         this.page = Page::Settings;
@@ -286,13 +284,58 @@ impl Downloader {
             )
             .child(self.tool_controls(cx))
     }
+    fn breadcrumbs(&self, title: &'static str, cx: &Context<Self>) -> Div {
+        let nested = matches!(self.page, Page::Detail | Page::TaskOptions);
+        let mut row = div().h_flex().items_center().gap_2();
+        if nested {
+            row = row
+                .child(
+                    Button::new("crumb-new")
+                        .ghost()
+                        .small()
+                        .label(crate::i18n::tr("新建任务"))
+                        .on_click(cx.listener(|this, _, _, cx| {
+                            if this.page == Page::TaskOptions {
+                                this.save_draft_editor(cx);
+                            }
+                            this.page = Page::New;
+                            cx.notify();
+                        })),
+                )
+                .child(muted(cx, "/"));
+            if self.page == Page::TaskOptions {
+                row = row
+                    .child(
+                        Button::new("crumb-preview")
+                            .ghost()
+                            .small()
+                            .label(crate::i18n::tr("下载预览"))
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                if this.save_draft_editor(cx) {
+                                    this.download(cx);
+                                } else {
+                                    this.pending = None;
+                                }
+                                this.page = Page::Detail;
+                                cx.notify();
+                            })),
+                    )
+                    .child(muted(cx, "/"));
+            }
+        }
+        row.child(
+            div()
+                .text_sm()
+                .font_semibold()
+                .child(crate::i18n::tr(title)),
+        )
+    }
     fn toolbar(&self, cx: &Context<Self>) -> Div {
         let title = match self.page {
             Page::Tasks => "下载队列",
             Page::History => "下载历史",
             Page::New => "新建下载",
             Page::Profiles => "下载配置",
-            Page::Confirm => "确认下载",
             Page::Detail => "下载预览",
             Page::TaskOptions => "本次下载选项",
             Page::Settings => "软件设置",
@@ -305,20 +348,7 @@ impl Downloader {
             .px_5()
             .border_b_1()
             .border_color(cx.theme().border)
-            .child(
-                div()
-                    .h_flex()
-                    .items_center()
-                    .gap_2()
-                    .child(muted(cx, crate::i18n::tr("视频下载器")))
-                    .child(muted(cx, "/"))
-                    .child(
-                        div()
-                            .text_sm()
-                            .font_semibold()
-                            .child(crate::i18n::tr(title)),
-                    ),
-            )
+            .child(self.breadcrumbs(title, cx))
             .child(
                 div()
                     .h_flex()

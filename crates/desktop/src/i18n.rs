@@ -30,6 +30,7 @@ fn translate(source: &str, language: Language) -> &str {
         .unwrap_or(source)
 }
 const CATALOG: &[(&str, &str)] = &[
+    ("加入下载队列", "Add to download queue"),
     ("下载预览", "Download preview"),
     ("本次下载选项", "Options for this download"),
     ("编辑本次下载选项", "Edit task options"),

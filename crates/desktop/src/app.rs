@@ -20,7 +20,7 @@ pub(crate) struct Downloader {
     pub(crate) probe_job: Option<(String, CancelToken)>,
     pub(crate) preset_select: Entity<
         gpui_kit::component::select::SelectState<
-            gpui_kit::component::select::SearchableVec<String>,
+            gpui_kit::component::select::SearchableVec<crate::preset_option::PresetOption>,
         >,
     >,
     pub(crate) queued: std::collections::VecDeque<(DownloadRequest, DownloadProfile)>,
@@ -110,7 +110,10 @@ impl Downloader {
             .store
             .presets
             .iter()
-            .map(|p| format!("{} · {}", p.name, p.id))
+            .map(|p| crate::preset_option::PresetOption {
+                id: p.id.clone(),
+                name: p.name.clone(),
+            })
             .collect::<Vec<_>>();
         let preset_select = cx.new(|cx| {
             SelectState::new(SearchableVec::new(names), None, window, cx).searchable(true)
@@ -118,14 +121,18 @@ impl Downloader {
         let preset_sub = cx.subscribe_in(
             &preset_select,
             window,
-            |this, _, event: &SelectEvent<SearchableVec<String>>, window, cx| {
+            |this,
+             _,
+             event: &SelectEvent<SearchableVec<crate::preset_option::PresetOption>>,
+             window,
+             cx| {
                 if let SelectEvent::Confirm(Some(name)) = event {
                     if let Some(p) = this
                         .settings
                         .store
                         .presets
                         .iter()
-                        .find(|p| format!("{} · {}", p.name, p.id) == *name)
+                        .find(|p| p.id == *name)
                         .cloned()
                     {
                         this.settings.profile = p.profile.clone();
@@ -208,7 +215,7 @@ impl Downloader {
             Ok(_) => {
                 self.pending = Some(request);
                 self.duplicate_confirmed = false;
-                self.page = crate::settings::Page::Confirm;
+                self.page = crate::settings::Page::Detail;
             }
             Err(error) => self.status = error_text(&error),
         }

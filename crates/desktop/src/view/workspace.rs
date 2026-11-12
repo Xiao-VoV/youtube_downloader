@@ -196,13 +196,6 @@ impl Downloader {
             .border_color(cx.theme().border)
             .rounded_lg();
         for (label, value) in [
-            (
-                "视频",
-                self.media
-                    .as_ref()
-                    .map(|m| m.title.clone())
-                    .unwrap_or_default(),
-            ),
             ("输出", format!("{} / {quality}", tr(format))),
             (
                 "保存到",
@@ -326,29 +319,34 @@ impl Downloader {
                     .h_flex()
                     .gap_3()
                     .child(
-                        Button::new("execute")
-                            .primary()
-                            .label(tr("确认下载"))
-                            .disabled(self.busy || !valid)
-                            .on_click(cx.listener(|this, _, _, cx| this.execute_confirmed(cx))),
+                        Button::new("preview-edit")
+                            .small()
+                            .icon(IconName::Settings)
+                            .label(tr("编辑本次下载选项"))
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                this.page = Page::TaskOptions;
+                                cx.notify();
+                            })),
                     )
                     .child(
                         Button::new("copy")
+                            .ghost()
+                            .small()
                             .label(tr("复制命令"))
+                            .disabled(!plan_valid)
                             .on_click(move |_, _, cx| {
                                 cx.write_to_clipboard(ClipboardItem::new_string(command.clone()))
                             }),
                     )
-                    .child(Button::new("back").label(tr("返回")).on_click(cx.listener(
-                        |this, _, _, cx| {
-                            this.page = if this.selected_draft.is_some() {
-                                Page::Detail
-                            } else {
-                                Page::New
-                            };
-                            cx.notify();
-                        },
-                    ))),
+                    .child(div().flex_1())
+                    .child(
+                        Button::new("execute")
+                            .primary()
+                            .small()
+                            .label(tr("加入下载队列"))
+                            .disabled(self.busy || !valid || self.media.is_none())
+                            .on_click(cx.listener(|this, _, _, cx| this.execute_confirmed(cx))),
+                    ),
             )
     }
 }

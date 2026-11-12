@@ -11,6 +11,7 @@ mod jobs;
 mod messages;
 mod preferences;
 mod preset_actions;
+mod preset_option;
 mod settings;
 mod tool_settings;
 mod view;

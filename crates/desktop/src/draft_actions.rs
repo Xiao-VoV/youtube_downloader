@@ -14,7 +14,10 @@ impl Downloader {
             .store
             .presets
             .iter()
-            .map(|p| format!("{} · {}", p.name, p.id))
+            .map(|p| crate::preset_option::PresetOption {
+                id: p.id.clone(),
+                name: p.name.clone(),
+            })
             .collect::<Vec<_>>();
         self.preset_select.update(cx, |s, cx| {
             s.set_items(
@@ -225,6 +228,11 @@ impl Downloader {
         self.settings.extra.update(cx, |s, cx| {
             s.set_value(d.profile.extra_args.join("\n"), window, cx)
         });
+        if self.media.is_some() {
+            self.download(cx);
+        } else {
+            self.pending = None;
+        }
         self.page = Page::Detail;
         cx.notify();
     }

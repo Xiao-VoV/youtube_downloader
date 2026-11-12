@@ -17,7 +17,6 @@ pub(crate) enum Page {
     New,
     Profiles,
     Settings,
-    Confirm,
     Detail,
     TaskOptions,
 }

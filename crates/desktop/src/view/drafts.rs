@@ -38,21 +38,27 @@ impl Downloader {
                             ),
                     )
                     .child(
-                        div().h_flex().gap_3().items_center().child(
-                            div().flex_1().min_w_0().child(
-                                Select::new(&self.preset_select)
-                                    .placeholder(crate::i18n::tr("使用下载配置")),
-                            ),
-                        ),
-                    )
-                    .child(
-                        Button::new("add-draft")
-                            .primary()
-                            .small()
-                            .icon(IconName::Plus)
-                            .label(crate::i18n::tr("解析链接"))
-                            .on_click(
-                                cx.listener(|this, _, window, cx| this.add_draft(window, cx)),
+                        div()
+                            .h_flex()
+                            .items_center()
+                            .justify_between()
+                            .gap_3()
+                            .child(
+                                div().w(px(260.)).min_w_0().child(
+                                    Select::new(&self.preset_select)
+                                        .small()
+                                        .placeholder(crate::i18n::tr("使用下载配置")),
+                                ),
+                            )
+                            .child(
+                                Button::new("add-draft")
+                                    .primary()
+                                    .small()
+                                    .icon(IconName::Plus)
+                                    .label(crate::i18n::tr("解析链接"))
+                                    .on_click(cx.listener(|this, _, window, cx| {
+                                        this.add_draft(window, cx)
+                                    })),
                             ),
                     ),
             );
@@ -165,40 +171,9 @@ impl Downloader {
                     .children(d.error.as_ref().map(|e| muted(cx, e.clone()))),
             );
         }
-        body.child(self.download_summary(cx)).child(
-            div()
-                .h_flex()
-                .gap_2()
-                .child(
-                    Button::new("preview-edit")
-                        .small()
-                        .icon(IconName::Settings)
-                        .label(crate::i18n::tr("编辑本次下载选项"))
-                        .on_click(cx.listener(|this, _, _, cx| {
-                            this.page = Page::TaskOptions;
-                            cx.notify();
-                        })),
-                )
-                .child(
-                    Button::new("preview-review")
-                        .small()
-                        .primary()
-                        .label(crate::i18n::tr("查看命令并加入队列"))
-                        .disabled(self.media.is_none())
-                        .on_click(cx.listener(|this, _, _, cx| this.download(cx))),
-                )
-                .child(
-                    Button::new("preview-back")
-                        .small()
-                        .ghost()
-                        .label(crate::i18n::tr("返回"))
-                        .on_click(cx.listener(|this, _, _, cx| {
-                            this.page = Page::New;
-                            cx.notify();
-                        })),
-                ),
-        )
+        body.child(self.confirmation(cx))
     }
+
     pub(super) fn draft_options(&self, cx: &Context<Self>) -> Div {
         div()
             .v_flex()
@@ -217,7 +192,11 @@ impl Downloader {
                             .small()
                             .label(crate::i18n::tr("保存到本次任务并返回预览"))
                             .on_click(cx.listener(|this, _, _, cx| {
-                                this.save_draft_editor(cx);
+                                if this.save_draft_editor(cx) {
+                                    this.download(cx);
+                                } else {
+                                    this.pending = None;
+                                }
                                 this.page = Page::Detail;
                                 cx.notify();
                             })),

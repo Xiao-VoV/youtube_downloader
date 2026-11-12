@@ -10,6 +10,12 @@ impl Downloader {
                 if this
                     .update(cx, |this, cx| {
                         this.apply_update(update);
+                        if this.page == crate::settings::Page::Detail
+                            && this.pending.is_none()
+                            && this.media.is_some()
+                        {
+                            this.download(cx);
+                        }
                         this.start_next_probe(cx);
                         this.start_queued(cx);
                         cx.notify();
