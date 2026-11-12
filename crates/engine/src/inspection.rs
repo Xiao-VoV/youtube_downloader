@@ -10,6 +10,53 @@ pub struct MediaInspection {
     pub vcodec: Option<String>,
     pub acodec: Option<String>,
     pub duration: Option<f64>,
+    /// Actual aggregate format bitrate in bits/second, not a requested rate.
+    #[serde(default)]
+    pub bitrate: Option<u64>,
+}
+fn positive_bitrate(value: &serde_json::Value) -> Option<u64> {
+    value
+        .as_u64()
+        .or_else(|| {
+            let text = value.as_str()?;
+            if text.is_empty() || !text.bytes().all(|b| b.is_ascii_digit()) {
+                return None;
+            }
+            text.parse().ok()
+        })
+        .filter(|rate| *rate > 0)
+}
+#[cfg(test)]
+mod tests {
+    use super::positive_bitrate;
+    #[test]
+    fn bitrate_accepts_positive_integer_strings_and_numbers_only() {
+        for json in ["123456", "\"123456\""] {
+            assert_eq!(
+                positive_bitrate(&serde_json::from_str(json).unwrap()),
+                Some(123456)
+            );
+        }
+        for json in [
+            "null",
+            "0",
+            "-1",
+            "1.5",
+            "\"0\"",
+            "\"N/A\"",
+            "\"NaN\"",
+            "\"inf\"",
+            "\"-1\"",
+            "\"1.5\"",
+            "\"18446744073709551616\"",
+        ] {
+            assert_eq!(
+                positive_bitrate(&serde_json::from_str(json).unwrap()),
+                None,
+                "{json}"
+            );
+        }
+    }
 }
 impl Engine {
     pub fn inspect_media(&self, path: &Path, cancel: &CancelToken) -> Result<MediaInspection> {
@@ -36,7 +83,7 @@ impl Engine {
                 "-v",
                 "error",
                 "-show_entries",
-                "stream=codec_type,codec_name,width,height:format=duration",
+                "stream=codec_type,codec_name,width,height:format=duration,bit_rate",
                 "-of",
                 "json",
             ])
@@ -97,6 +144,10 @@ impl Engine {
             vcodec: codec(video),
             acodec: codec(audio),
             duration,
+            bitrate: value
+                .get("format")
+                .and_then(|v| v.get("bit_rate"))
+                .and_then(positive_bitrate),
         })
     }
 }

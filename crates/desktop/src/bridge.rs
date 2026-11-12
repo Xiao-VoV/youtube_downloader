@@ -99,6 +99,7 @@ impl Downloader {
                         record.metadata.ext = info.ext;
                         record.metadata.vcodec = info.vcodec;
                         record.metadata.acodec = info.acodec;
+                        record.metadata.bitrate = info.bitrate;
                         if info.duration.is_some() {
                             record.metadata.duration = info.duration;
                         }

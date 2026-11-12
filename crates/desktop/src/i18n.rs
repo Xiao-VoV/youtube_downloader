@@ -30,6 +30,23 @@ fn translate(source: &str, language: Language) -> &str {
         .unwrap_or(source)
 }
 const CATALOG: &[(&str, &str)] = &[
+    ("视频大小", "File size"),
+    ("UP主 / 频道", "Uploader / Channel"),
+    ("码率", "Bitrate"),
+    ("视频编码", "Video codec"),
+    ("音频编码", "Audio codec"),
+    ("时长", "Duration"),
+    ("完成时间", "Finished"),
+    ("选择当前页", "Select page"),
+    ("序号", "No."),
+    ("已选择", "Selected"),
+    ("一次最多打开 10 个链接", "Open at most 10 links at once"),
+    ("一次最多显示 10 个文件", "Reveal at most 10 files at once"),
+    ("确认删除记录", "Confirm deletion"),
+    ("删除记录", "Delete records"),
+    ("删除失败", "Deletion failed"),
+    ("取消选择", "Clear selection"),
+    ("显示列", "Columns"),
     ("加入下载队列", "Add to download queue"),
     ("下载预览", "Download preview"),
     ("本次下载选项", "Options for this download"),

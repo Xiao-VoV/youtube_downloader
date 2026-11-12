@@ -1,10 +1,11 @@
-//! Compact sortable history table. Actions never delete downloaded media.
+//! Selectable history table; actions operate on stable record IDs, never row indexes.
 use super::muted;
-use crate::i18n::tr;
 use crate::{
     app::Downloader,
-    history::{HistoryEntry, HistoryStatus},
+    history::{HistoryEntry, HistorySort, PageOrder},
+    history_columns::Field,
     history_table::{Column, size, status},
+    i18n::tr,
 };
 use gpui_kit::{
     base::{Scrollbar, ScrollbarMode},
@@ -13,14 +14,6 @@ use gpui_kit::{
 };
 impl Downloader {
     pub(super) fn history_view(&self, cx: &Context<Self>) -> Div {
-        let mut body = div().v_flex().gap_2();
-        if let Some(error) = &self.history.error {
-            body = body.child(muted(cx, format!("{}: {error}", tr("历史存储"))));
-        }
-        if self.history.entries.is_empty() {
-            return body.child(muted(cx, tr("暂无下载历史")));
-        }
-        use crate::history::{HistorySort, PageOrder};
         let order = match self.history_sort.column {
             Column::Title => PageOrder::Title,
             Column::Status => PageOrder::Status,
@@ -29,7 +22,17 @@ impl Downloader {
             Column::Resolution => PageOrder::Resolution,
             Column::Format => PageOrder::Format,
             Column::Size => PageOrder::Size,
+            Column::Channel => PageOrder::Channel,
+            Column::Bitrate => PageOrder::Bitrate,
+            Column::VideoCodec => PageOrder::VideoCodec,
+            Column::AudioCodec => PageOrder::AudioCodec,
+            Column::Duration => PageOrder::Duration,
+            Column::Finished => PageOrder::Finished,
         };
+        let mut body = div().v_flex().gap_3().child(self.history_actions(cx));
+        if self.history_columns_open {
+            body = body.child(self.column_picker(cx));
+        }
         let page = match self.history.page(
             HistorySort {
                 order,
@@ -38,33 +41,96 @@ impl Downloader {
             self.history_page,
             self.history_page_size,
         ) {
-            Ok(page) => page,
-            Err(error) => return body.child(muted(cx, error)),
+            Ok(p) => p,
+            Err(e) => return body.child(muted(cx, e)),
         };
         body = body.child(self.history_pagination(page.total, cx));
-        let mut table = div().v_flex().w(px(1320.)).child(self.history_header(cx));
-        for (index, entry) in page.entries.iter().enumerate() {
-            table = table.child(self.history_row(index, entry, cx));
+        let width = 100.
+            + self
+                .history_columns
+                .iter()
+                .map(|f| f.width() + 8.)
+                .sum::<f32>();
+        let ids = page
+            .entries
+            .iter()
+            .map(|e| e.id.clone())
+            .collect::<Vec<_>>();
+        let all = !ids.is_empty() && ids.iter().all(|id| self.history_selected.contains(id));
+        let mut header = div()
+            .h_flex()
+            .items_center()
+            .gap_2()
+            .px_2()
+            .h(px(36.))
+            .bg(cx.theme().muted)
+            .child(
+                Button::new("select-page")
+                    .ghost()
+                    .xsmall()
+                    .w(px(36.))
+                    .label(if all { "☑" } else { "☐" })
+                    .tooltip(tr("选择当前页"))
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        this.history_delete = None;
+                        for id in &ids {
+                            if all {
+                                this.history_selected.remove(id);
+                            } else {
+                                this.history_selected.insert(id.clone());
+                            }
+                        }
+                        cx.notify();
+                    })),
+            )
+            .child(muted(cx, tr("序号")).w(px(48.)).flex_shrink_0());
+        for (n, field) in self.history_columns.iter().copied().enumerate() {
+            let sort = field_sort(field);
+            let arrow = if sort == Some(self.history_sort.column) {
+                if self.history_sort.descending {
+                    " ↓"
+                } else {
+                    " ↑"
+                }
+            } else {
+                ""
+            };
+            header = header.child(
+                div()
+                    .id(("header", n))
+                    .w(px(field.width()))
+                    .flex_shrink_0()
+                    .text_xs()
+                    .font_semibold()
+                    .cursor_pointer()
+                    .child(format!("{}{arrow}", tr(field.label())))
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        if let Some(sort) = sort {
+                            this.history_sort.toggle(sort);
+                            this.history_page = 0;
+                            cx.notify();
+                        }
+                    })),
+            );
+        }
+        let mut table = div().v_flex().w(px(width)).child(header);
+        for (index, e) in page.entries.iter().enumerate() {
+            table = table.child(self.history_row(index, e, cx));
         }
         body.child(
             div()
                 .relative()
                 .w_full()
+                .rounded_lg()
                 .border_1()
                 .border_color(cx.theme().border)
-                .rounded_lg()
                 .overflow_hidden()
-                .bg(cx.theme().background)
-                .pb(px(20.))
                 .child(
                     div()
-                        .id("history-table-horizontal")
-                        .w_full()
+                        .id("history-scroll")
                         .overflow_x_scroll()
                         .restrict_scroll_to_axis()
                         .track_scroll(&self.history_scroll)
-                        // Padding belongs to the tracked viewport, so the overlay
-                        // scrollbar has a dedicated gutter after the final row.
                         .pb(px(20.))
                         .child(table),
                 )
@@ -135,254 +201,127 @@ impl Downloader {
         }
         row
     }
-    fn history_header(&self, cx: &Context<Self>) -> Div {
-        let mut row = div()
-            .h_flex()
-            .items_center()
-            .gap_2()
-            .px_2()
-            .h(px(34.))
-            .border_b_1()
-            .border_color(cx.theme().border)
-            .bg(cx.theme().muted);
-        for (index, (label, column, width)) in [
-            ("名称", Column::Title, 220.),
-            ("状态", Column::Status, 80.),
-            ("来源", Column::Site, 90.),
-            ("下载时间", Column::Time, 180.),
-            ("分辨率", Column::Resolution, 90.),
-            ("格式", Column::Format, 80.),
-            ("大小", Column::Size, 90.),
-        ]
-        .into_iter()
-        .enumerate()
-        {
-            let arrow = if self.history_sort.column == column {
-                if self.history_sort.descending {
-                    " ↓"
-                } else {
-                    " ↑"
-                }
-            } else {
-                ""
-            };
-            row = row.child(
-                div()
-                    .id(("history-sort", index))
-                    .w(px(width))
-                    .h(px(32.))
-                    .flex_shrink_0()
-                    .flex()
-                    .items_center()
-                    .px_2()
-                    .text_xs()
-                    .font_semibold()
-                    .text_color(cx.theme().muted_foreground)
-                    .cursor_pointer()
-                    .hover(|style| style.bg(cx.theme().border))
-                    .child(format!("{}{arrow}", tr(label)))
-                    .on_click(cx.listener(move |this, _, _, cx| {
-                        this.history_sort.toggle(column);
-                        this.history_page = 0;
-                        cx.notify();
-                    })),
-            );
-        }
-        row.child(header_label(cx, "原始链接", 96.))
-            .child(header_label(cx, "保存位置", 96.))
-            .child(header_label(cx, "操作", 64.))
-    }
+
     fn history_row(&self, index: usize, entry: &HistoryEntry, cx: &Context<Self>) -> Div {
-        let url = if entry.metadata.original_url.is_empty() {
-            entry.url.clone()
-        } else {
-            entry.metadata.original_url.clone()
-        };
-        let safe = youtube_engine::normalize_url(&url).is_ok();
-        let path = entry
-            .artifacts
-            .first()
-            .map(|a| a.path.clone())
-            .or(entry.metadata.output_dir.clone());
-        let path_exists = path.as_ref().is_some_and(|p| p.exists());
         let id = entry.id.clone();
-        let deleting = self.history_delete.as_ref() == Some(&entry.id);
+        let selected = self.history_selected.contains(&id);
         let mut row = div()
             .h_flex()
             .items_center()
             .gap_2()
             .px_2()
             .h(px(36.))
-            .hover(|style| style.bg(cx.theme().muted))
             .border_b_1()
             .border_color(cx.theme().border)
-            .child(scroll_cell(
-                ("history-title", index),
-                entry.title.clone(),
-                220.,
-            ))
-            .child(status_badge(cx, entry.status))
-            .child(cell(cx, entry.metadata.source_site.clone(), 90.))
-            .child(cell(cx, format_time(entry.started_at), 180.))
-            .child(cell(
-                cx,
-                entry
-                    .metadata
-                    .height
-                    .map(|h| format!("{h}p"))
-                    .unwrap_or("—".into()),
-                90.,
-            ))
-            .child(cell(
-                cx,
-                entry.metadata.ext.clone().unwrap_or("—".into()),
-                80.,
-            ))
-            .child(cell(cx, format!("{:.1} MB", size(entry) as f64 / 1e6), 90.))
+            .bg(if selected {
+                cx.theme().muted
+            } else {
+                cx.theme().background
+            })
+            .hover(|s| s.bg(cx.theme().muted))
             .child(
-                div().w(px(96.)).flex_shrink_0().child(
-                    Button::new(("history-url", index))
-                        .ghost()
-                        .xsmall()
-                        .icon(IconName::ExternalLink)
-                        .tooltip(tr("打开原链接 ↗"))
-                        .disabled(!safe)
-                        .on_click(move |_, _, cx| cx.open_url(&url)),
-                ),
-            );
-        row = row.child(
-            div().w(px(96.)).flex_shrink_0().child(
-                Button::new(("history-path", index))
+                Button::new(("select-record", index))
                     .ghost()
                     .xsmall()
-                    .icon(IconName::FolderOpen)
-                    .tooltip(if path_exists {
-                        tr("Finder 中显示")
-                    } else {
-                        tr("路径不可用")
-                    })
-                    .disabled(!path_exists)
-                    .on_click(move |_, _, cx| {
-                        if let Some(path) = &path {
-                            cx.reveal_path(path);
-                        }
-                    }),
-            ),
-        );
-        row.child(
-            div().w(px(64.)).flex_shrink_0().child(
-                Button::new(("history-delete", index))
-                    .ghost()
-                    .xsmall()
-                    .icon(if deleting {
-                        IconName::Check
-                    } else {
-                        IconName::Delete
-                    })
-                    .text_color(if deleting {
-                        cx.theme().danger
-                    } else {
-                        cx.theme().muted_foreground
-                    })
-                    .tooltip(if deleting {
-                        tr("确认删除")
-                    } else {
-                        tr("删除")
-                    })
-                    .disabled(
-                        entry.status == HistoryStatus::Running
-                            || self.running.contains_key(&entry.id),
-                    )
+                    .w(px(36.))
+                    .label(if selected { "☑" } else { "☐" })
                     .on_click(cx.listener(move |this, _, _, cx| {
-                        if this.history_delete.as_ref() != Some(&id) {
-                            this.history_delete = Some(id.clone());
-                        } else {
-                            match this.history.delete(&id) {
-                                Ok(()) => this.status = tr("历史记录已删除，媒体文件保留。"),
-                                Err(e) => this.status = e,
-                            };
-                            this.history_delete = None;
+                        if !this.history_selected.remove(&id) {
+                            this.history_selected.insert(id.clone());
                         }
+                        this.history_delete = None;
                         cx.notify();
                     })),
-            ),
-        )
+            )
+            .child(
+                muted(
+                    cx,
+                    (self.history_page * self.history_page_size + index + 1).to_string(),
+                )
+                .w(px(48.))
+                .flex_shrink_0(),
+            );
+        for (n, field) in self.history_columns.iter().copied().enumerate() {
+            let text = field_text(field, entry);
+            row = row.child(
+                div()
+                    .id(("history-cell", index * 32 + n))
+                    .w(px(field.width()))
+                    .flex_shrink_0()
+                    .overflow_hidden()
+                    .whitespace_nowrap()
+                    .text_xs()
+                    .tooltip({
+                        let text = text.clone();
+                        move |window, cx| Tooltip::new(text.clone()).build(window, cx)
+                    })
+                    .child(text),
+            );
+        }
+        row
     }
 }
-fn status_badge(cx: &Context<Downloader>, value: HistoryStatus) -> Div {
-    let color = match value {
-        HistoryStatus::Succeeded => cx.theme().success,
-        HistoryStatus::Failed => cx.theme().danger,
-        HistoryStatus::Running => cx.theme().primary,
-        HistoryStatus::Interrupted => cx.theme().warning,
-        HistoryStatus::Cancelled => cx.theme().muted_foreground,
-    };
-    div().w(px(80.)).flex_shrink_0().child(
-        div()
-            .h_flex()
-            .items_center()
-            .gap_1()
-            .px_2()
-            .py_1()
-            .rounded_md()
-            .text_xs()
-            .text_color(color)
-            .bg(cx.theme().muted)
-            .child(div().size(px(5.)).rounded_full().bg(color))
-            .child(tr(status(value))),
-    )
+fn field_sort(f: Field) -> Option<Column> {
+    match f {
+        Field::Title => Some(Column::Title),
+        Field::Status => Some(Column::Status),
+        Field::Site => Some(Column::Site),
+        Field::Time => Some(Column::Time),
+        Field::Resolution => Some(Column::Resolution),
+        Field::Format => Some(Column::Format),
+        Field::Size => Some(Column::Size),
+        Field::Channel => Some(Column::Channel),
+        Field::Bitrate => Some(Column::Bitrate),
+        Field::VideoCodec => Some(Column::VideoCodec),
+        Field::AudioCodec => Some(Column::AudioCodec),
+        Field::Duration => Some(Column::Duration),
+        Field::Finished => Some(Column::Finished),
+        _ => None,
+    }
 }
-fn header_label(cx: &Context<Downloader>, label: &'static str, width: f32) -> Div {
-    muted(cx, tr(label))
-        .w(px(width))
-        .h(px(32.))
-        .flex_shrink_0()
-        .flex()
-        .items_center()
-        .px_2()
-        .whitespace_nowrap()
-        .overflow_hidden()
-        .font_semibold()
-}
-fn cell(cx: &Context<Downloader>, text: String, width: f32) -> Div {
-    muted(cx, text)
-        .w(px(width))
-        .flex_shrink_0()
-        .overflow_hidden()
-}
-pub(super) fn scroll_cell(id: (&'static str, usize), text: String, width: f32) -> Stateful<Div> {
-    div()
-        .id(id)
-        .w(px(width))
-        .flex_shrink_0()
-        .overflow_x_scroll()
-        .restrict_scroll_to_axis()
-        .tooltip({
-            let text = text.clone();
-            move |window, cx| Tooltip::new(text.clone()).build(window, cx)
-        })
-        .child(div().whitespace_nowrap().text_xs().child(text))
+fn field_text(f: Field, e: &HistoryEntry) -> String {
+    let m = &e.metadata;
+    match f {
+        Field::Title => e.title.clone(),
+        Field::Status => tr(status(e.status)),
+        Field::Site => m.source_site.clone(),
+        Field::Time => format_time(e.started_at),
+        Field::Resolution => m.height.map(|h| format!("{h}p")).unwrap_or("—".into()),
+        Field::Format => m.ext.clone().unwrap_or("—".into()),
+        Field::Size => format!("{:.1} MB", size(e) as f64 / 1e6),
+        Field::Channel => m.channel.clone().unwrap_or("—".into()),
+        Field::Bitrate => m
+            .bitrate
+            .map(|b| format!("{:.0} kbps", b as f64 / 1000.))
+            .unwrap_or("—".into()),
+        Field::VideoCodec => m.vcodec.clone().unwrap_or("—".into()),
+        Field::AudioCodec => m.acodec.clone().unwrap_or("—".into()),
+        Field::Duration => m
+            .duration
+            .map(|d| format!("{d:.1} s"))
+            .unwrap_or("—".into()),
+        Field::Finished => e.finished_at.map(format_time).unwrap_or("—".into()),
+        Field::Url => {
+            if m.original_url.is_empty() {
+                e.url.clone()
+            } else {
+                m.original_url.clone()
+            }
+        }
+        Field::Path => e
+            .artifacts
+            .iter()
+            .map(|a| a.path.display().to_string())
+            .collect::<Vec<_>>()
+            .join("\n"),
+    }
 }
 fn format_time(seconds: u64) -> String {
     chrono::DateTime::from_timestamp(i64::try_from(seconds).unwrap_or(i64::MAX), 0)
-        .map(|time| {
-            time.with_timezone(&chrono::Local)
+        .map(|t| {
+            t.with_timezone(&chrono::Local)
                 .format("%Y-%m-%d %H:%M %:z")
                 .to_string()
         })
-        .unwrap_or_else(|| "—".into())
-}
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn display_uses_local_timezone_without_changing_timestamp() {
-        use chrono::TimeZone;
-        let expected = chrono::Local
-            .timestamp_opt(1709164800, 0)
-            .unwrap()
-            .format("%Y-%m-%d %H:%M %:z")
-            .to_string();
-        assert_eq!(super::format_time(1709164800), expected);
-        assert_eq!(super::format_time(u64::MAX), "—");
-    }
+        .unwrap_or("—".into())
 }

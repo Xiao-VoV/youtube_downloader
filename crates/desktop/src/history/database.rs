@@ -250,6 +250,12 @@ pub(super) fn page(
         PageOrder::Status => "status",
         PageOrder::Site => "COALESCE(json_extract(metadata,'$.source_site'),'') COLLATE NOCASE",
         PageOrder::Time => "started_at",
+        PageOrder::Channel => "COALESCE(json_extract(metadata,'$.channel'),'') COLLATE NOCASE",
+        PageOrder::Bitrate => "COALESCE(json_extract(metadata,'$.bitrate'),0)",
+        PageOrder::VideoCodec => "COALESCE(json_extract(metadata,'$.vcodec'),'') COLLATE NOCASE",
+        PageOrder::AudioCodec => "COALESCE(json_extract(metadata,'$.acodec'),'') COLLATE NOCASE",
+        PageOrder::Duration => "COALESCE(json_extract(metadata,'$.duration'),0)",
+        PageOrder::Finished => "COALESCE(finished_at,0)",
         PageOrder::Resolution => {
             "COALESCE(json_extract(metadata,'$.height'),json_extract(metadata,'$.requested_height'),0)"
         }

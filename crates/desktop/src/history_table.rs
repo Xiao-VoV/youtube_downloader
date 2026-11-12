@@ -9,6 +9,12 @@ pub(crate) enum Column {
     Resolution,
     Format,
     Size,
+    Channel,
+    Bitrate,
+    VideoCodec,
+    AudioCodec,
+    Duration,
+    Finished,
 }
 #[derive(Clone, Copy)]
 pub(crate) struct Sort {
@@ -44,6 +50,16 @@ impl Sort {
                 Column::Resolution => a.metadata.height.cmp(&b.metadata.height),
                 Column::Format => a.metadata.ext.cmp(&b.metadata.ext),
                 Column::Size => size(a).cmp(&size(b)),
+                Column::Channel => a.metadata.channel.cmp(&b.metadata.channel),
+                Column::Bitrate => a.metadata.bitrate.cmp(&b.metadata.bitrate),
+                Column::VideoCodec => a.metadata.vcodec.cmp(&b.metadata.vcodec),
+                Column::AudioCodec => a.metadata.acodec.cmp(&b.metadata.acodec),
+                Column::Duration => a
+                    .metadata
+                    .duration
+                    .partial_cmp(&b.metadata.duration)
+                    .unwrap_or(std::cmp::Ordering::Equal),
+                Column::Finished => a.finished_at.cmp(&b.finished_at),
             };
             let order = if self.descending {
                 order.reverse()

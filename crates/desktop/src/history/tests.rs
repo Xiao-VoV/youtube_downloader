@@ -6,6 +6,62 @@ use std::{
 static ID: AtomicU64 = AtomicU64::new(0);
 
 #[test]
+fn extended_media_columns_sort_numerically_and_page_globally() {
+    let f = Fixture::new();
+    let mut h = History::load_at(f.db());
+    for (id, rank) in [("low", 2u64), ("high", 10), ("missing", 0)] {
+        let mut e = entry();
+        e.id = id.into();
+        e.status = HistoryStatus::Succeeded;
+        e.metadata.channel = (rank > 0).then(|| format!("channel-{rank:02}"));
+        e.metadata.bitrate = (rank > 0).then_some(rank * 1000);
+        e.metadata.vcodec = (rank > 0).then(|| format!("video-{rank:02}"));
+        e.metadata.acodec = (rank > 0).then(|| format!("audio-{rank:02}"));
+        e.metadata.duration = (rank > 0).then_some(rank as f64 + 0.5);
+        e.finished_at = (rank > 0).then_some(rank);
+        h.upsert(e).unwrap();
+    }
+    for order in [
+        PageOrder::Channel,
+        PageOrder::Bitrate,
+        PageOrder::VideoCodec,
+        PageOrder::AudioCodec,
+        PageOrder::Duration,
+        PageOrder::Finished,
+    ] {
+        for (desc, expected) in [
+            (false, vec!["missing", "low", "high"]),
+            (true, vec!["high", "low", "missing"]),
+        ] {
+            let sort = HistorySort { order, desc };
+            let all = h.page(sort, 0, 100).unwrap();
+            assert_eq!(all.total, 3);
+            assert_eq!(
+                all.entries
+                    .iter()
+                    .map(|e| e.id.as_str())
+                    .collect::<Vec<_>>(),
+                expected
+            );
+            let paged = (0..3)
+                .flat_map(|page| h.page(sort, page, 1).unwrap().entries)
+                .map(|e| e.id)
+                .collect::<Vec<_>>();
+            assert_eq!(paged, expected);
+        }
+    }
+    let metadata = History::load_at(f.db())
+        .entries
+        .into_iter()
+        .find(|e| e.id == "high")
+        .unwrap()
+        .metadata;
+    assert_eq!(metadata.bitrate, Some(10000));
+    let old: HistoryMetadata = serde_json::from_str("{}").unwrap();
+    assert_eq!(old.bitrate, None);
+}
+
+#[test]
 fn sql_pages_sort_globally_with_stable_ties_and_total() {
     let f = Fixture::new();
     let mut h = History::load_at(f.db());

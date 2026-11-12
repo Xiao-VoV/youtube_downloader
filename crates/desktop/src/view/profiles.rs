@@ -2,6 +2,7 @@
 use super::muted;
 use crate::i18n::tr;
 use crate::{app::Downloader, settings::Page};
+use gpui_kit::prelude::FluentBuilder;
 use gpui_kit::{
     component::{
         button::*,
@@ -11,7 +12,6 @@ use gpui_kit::{
     *,
 };
 use youtube_engine::*;
-use gpui_kit::prelude::FluentBuilder;
 impl Downloader {
     pub(super) fn preset_switcher(&self, cx: &Context<Self>) -> Div {
         let mut row = div().h_flex().gap_2().flex_wrap();

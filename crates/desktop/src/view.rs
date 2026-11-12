@@ -9,6 +9,7 @@ mod drafts;
 mod fields;
 mod help;
 mod history;
+mod history_actions;
 mod profiles;
 mod tools;
 mod workspace;

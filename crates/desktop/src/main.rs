@@ -5,6 +5,7 @@ mod draft_actions;
 mod drafts;
 mod duplicates;
 mod history;
+mod history_columns;
 mod history_table;
 mod i18n;
 mod jobs;

@@ -23,6 +23,8 @@ pub struct HistoryMetadata {
     pub media_id: String,
     pub channel: Option<String>,
     pub duration: Option<f64>,
+    /// Actual format bitrate in bits/second, when ffprobe reports one.
+    pub bitrate: Option<u64>,
     pub original_url: String,
     pub requested_height: Option<u16>,
     pub best_resolution: bool,
@@ -64,6 +66,12 @@ pub enum PageOrder {
     Resolution,
     Format,
     Size,
+    Channel,
+    Bitrate,
+    VideoCodec,
+    AudioCodec,
+    Duration,
+    Finished,
 }
 #[derive(Clone, Copy, Debug)]
 pub struct HistorySort {

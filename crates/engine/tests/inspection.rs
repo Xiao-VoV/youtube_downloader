@@ -8,7 +8,7 @@ fn ffprobe_fields_are_optional_and_format_family_is_not_extension() {
     let tool = root.join("ffprobe");
     let media = root.join("actual.mp4");
     fs::write(&media, b"fake").unwrap();
-    fs::write(&tool,"#!/bin/sh\nprintf '%s' '{\"streams\":[{\"codec_type\":\"video\",\"codec_name\":\"h264\",\"width\":1920,\"height\":1080},{\"codec_type\":\"audio\",\"codec_name\":\"aac\"}],\"format\":{\"duration\":\"12.5\",\"format_name\":\"mov,mp4,m4a\"}}'\n").unwrap();
+    fs::write(&tool,"#!/bin/sh\nprintf '%s' '{\"streams\":[{\"codec_type\":\"video\",\"codec_name\":\"h264\",\"width\":1920,\"height\":1080},{\"codec_type\":\"audio\",\"codec_name\":\"aac\"}],\"format\":{\"duration\":\"12.5\",\"bit_rate\":\"2500000\",\"format_name\":\"mov,mp4,m4a\"}}'\n").unwrap();
     fs::set_permissions(&tool, fs::Permissions::from_mode(0o700)).unwrap();
     let e = Engine::new(
         ToolPaths {
@@ -25,6 +25,7 @@ fn ffprobe_fields_are_optional_and_format_family_is_not_extension() {
     assert_eq!(info.vcodec.as_deref(), Some("h264"));
     assert_eq!(info.acodec.as_deref(), Some("aac"));
     assert_eq!(info.duration, Some(12.5));
+    assert_eq!(info.bitrate, Some(2500000));
     assert_eq!(info.ext.as_deref(), Some("mp4"));
     fs::write(&tool, "#!/bin/sh\nprintf '{}'\n").unwrap();
     let info = e.inspect_media(&media, &CancelToken::new()).unwrap();
@@ -34,6 +35,7 @@ fn ffprobe_fields_are_optional_and_format_family_is_not_extension() {
             && info.duration.is_none()
             && info.vcodec.is_none()
             && info.acodec.is_none()
+            && info.bitrate.is_none()
     );
     fs::write(&tool, "#!/bin/sh\nprintf '[]'\n").unwrap();
     assert_eq!(
