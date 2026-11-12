@@ -7,6 +7,144 @@ use std::{
     time::{Duration, Instant},
 };
 
+#[cfg(windows)]
+fn windows_run(
+    mut command: Command,
+    config: &EngineConfig,
+    timeout: Duration,
+    cancel: &CancelToken,
+    capture: bool,
+    mut line: impl FnMut(&[u8]) -> Result<()>,
+) -> Result<Output> {
+    use std::os::windows::process::CommandExt;
+    use windows_sys::Win32::{
+        Foundation::CloseHandle,
+        System::{
+            JobObjects::{
+                AssignProcessToJobObject, CreateJobObjectW, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+                JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JobObjectExtendedLimitInformation,
+                SetInformationJobObject, TerminateJobObject,
+            },
+            Threading::{OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_TERMINATE},
+        },
+    };
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    command
+        .creation_flags(CREATE_NO_WINDOW)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    let job = unsafe { CreateJobObjectW(std::ptr::null(), std::ptr::null()) };
+    if job == 0 {
+        return Err(EngineError::new(
+            ErrorKind::Spawn,
+            "cannot create Windows Job Object",
+        ));
+    }
+    let mut limits = JOBOBJECT_EXTENDED_LIMIT_INFORMATION {
+        BasicLimitInformation: Default::default(),
+        IoInfo: Default::default(),
+        ProcessMemoryLimit: 0,
+        JobMemoryLimit: 0,
+        PeakProcessMemoryUsed: 0,
+        PeakJobMemoryUsed: 0,
+    };
+    limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+    if unsafe {
+        SetInformationJobObject(
+            job,
+            JobObjectExtendedLimitInformation,
+            &limits as *const _ as *const _,
+            std::mem::size_of_val(&limits) as u32,
+        )
+    } == 0
+    {
+        unsafe {
+            CloseHandle(job);
+        }
+        return Err(EngineError::new(
+            ErrorKind::Spawn,
+            "cannot configure Windows Job Object",
+        ));
+    }
+    let mut child = command
+        .spawn()
+        .map_err(|_| EngineError::new(ErrorKind::Spawn, "unable to start selected tool"))?;
+    let process = unsafe {
+        OpenProcess(
+            PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_TERMINATE,
+            0,
+            child.id(),
+        )
+    };
+    if process == 0 || unsafe { AssignProcessToJobObject(job, process) } == 0 {
+        unsafe {
+            if process != 0 {
+                CloseHandle(process);
+            }
+            TerminateJobObject(job, 1);
+            CloseHandle(job);
+        }
+        return Err(EngineError::new(
+            ErrorKind::Spawn,
+            "cannot assign tool to Windows Job Object",
+        ));
+    }
+    let (rx, readers) = start_readers(&mut child);
+    let started = Instant::now();
+    let mut stopped = false;
+    let mut pipes = PipeState::new(capture);
+    loop {
+        if !stopped && (cancel.is_cancelled() || started.elapsed() >= timeout) {
+            unsafe {
+                TerminateJobObject(job, 1);
+            }
+            stopped = true;
+        }
+        if child.try_wait().ok().flatten().is_some() {
+            stopped = true;
+        }
+        if stopped && pipes.ended == 2 {
+            break;
+        }
+        if let Ok(chunk) = rx.recv_timeout(Duration::from_millis(20)) {
+            pipes.consume(chunk, config, stopped, &mut line)?;
+        }
+    }
+    let status = child
+        .wait()
+        .map_err(|_| EngineError::new(ErrorKind::Io, "tool reap failed"))?;
+    for reader in readers {
+        let _ = reader.join();
+    }
+    unsafe {
+        CloseHandle(process);
+        CloseHandle(job);
+    }
+    if cancel.is_cancelled() {
+        return Err(EngineError::new(
+            ErrorKind::Cancelled,
+            "cancelled; job stopped",
+        ));
+    }
+    if started.elapsed() >= timeout {
+        return Err(EngineError::new(
+            ErrorKind::Timeout,
+            "tool deadline exceeded; job stopped",
+        ));
+    }
+    if !status.success() {
+        return Err(EngineError::new(
+            ErrorKind::ProcessFailed,
+            "tool exited unsuccessfully",
+        ));
+    }
+    if !capture && !pipes.pending.is_empty() {
+        line(&pipes.pending)?;
+    }
+    Ok(pipes.output)
+}
+
 #[cfg(unix)]
 fn signal_group(pid: u32, sig: i32) {
     // Negative PID addresses the group created at spawn, not only yt-dlp.
@@ -97,11 +235,13 @@ pub(crate) fn run(
             "cancelled before spawn",
         ));
     }
-    #[cfg(not(unix))]
+    #[cfg(all(not(unix), not(windows)))]
     return Err(EngineError::new(
         ErrorKind::Unsupported,
-        "process-tree supervision currently requires Unix",
+        "process-tree supervision is unavailable on this platform",
     ));
+    #[cfg(windows)]
+    return windows_run(command, config, timeout, cancel, capture, line);
     #[cfg(unix)]
     {
         use std::os::unix::process::CommandExt;
