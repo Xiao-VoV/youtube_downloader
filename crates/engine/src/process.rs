@@ -25,7 +25,7 @@ fn windows_run(
                 JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JobObjectExtendedLimitInformation,
                 SetInformationJobObject, TerminateJobObject,
             },
-            Threading::{OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_TERMINATE},
+            Threading::{OpenProcess, PROCESS_SET_QUOTA, PROCESS_TERMINATE},
         },
     };
     const CREATE_NO_WINDOW: u32 = 0x0800_0000;
@@ -70,13 +70,7 @@ fn windows_run(
     let mut child = command
         .spawn()
         .map_err(|_| EngineError::new(ErrorKind::Spawn, "unable to start selected tool"))?;
-    let process = unsafe {
-        OpenProcess(
-            PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_TERMINATE,
-            0,
-            child.id(),
-        )
-    };
+    let process = unsafe { OpenProcess(PROCESS_SET_QUOTA | PROCESS_TERMINATE, 0, child.id()) };
     if process == 0 || unsafe { AssignProcessToJobObject(job, process) } == 0 {
         unsafe {
             if process != 0 {
@@ -93,9 +87,18 @@ fn windows_run(
     let (rx, readers) = start_readers(&mut child);
     let started = Instant::now();
     let mut stopped = false;
+    let mut cancelled = false;
+    let mut timed_out = false;
     let mut pipes = PipeState::new(capture);
     loop {
-        if !stopped && (cancel.is_cancelled() || started.elapsed() >= timeout) {
+        if !stopped && cancel.is_cancelled() {
+            cancelled = true;
+            unsafe {
+                TerminateJobObject(job, 1);
+            }
+            stopped = true;
+        } else if !stopped && started.elapsed() >= timeout {
+            timed_out = true;
             unsafe {
                 TerminateJobObject(job, 1);
             }
@@ -121,13 +124,13 @@ fn windows_run(
         CloseHandle(process);
         CloseHandle(job);
     }
-    if cancel.is_cancelled() {
+    if cancelled {
         return Err(EngineError::new(
             ErrorKind::Cancelled,
             "cancelled; job stopped",
         ));
     }
-    if started.elapsed() >= timeout {
+    if timed_out {
         return Err(EngineError::new(
             ErrorKind::Timeout,
             "tool deadline exceeded; job stopped",
