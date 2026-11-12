@@ -296,10 +296,7 @@ fn field_text(f: Field, e: &HistoryEntry) -> String {
             .unwrap_or("—".into()),
         Field::VideoCodec => m.vcodec.clone().unwrap_or("—".into()),
         Field::AudioCodec => m.acodec.clone().unwrap_or("—".into()),
-        Field::Duration => m
-            .duration
-            .map(|d| format!("{d:.1} s"))
-            .unwrap_or("—".into()),
+        Field::Duration => m.duration.map(format_duration).unwrap_or("—".into()),
         Field::Finished => e.finished_at.map(format_time).unwrap_or("—".into()),
         Field::Url => {
             if m.original_url.is_empty() {
@@ -314,6 +311,34 @@ fn field_text(f: Field, e: &HistoryEntry) -> String {
             .map(|a| a.path.display().to_string())
             .collect::<Vec<_>>()
             .join("\n"),
+    }
+}
+fn format_duration(seconds: f64) -> String {
+    if !seconds.is_finite() || seconds < 0.0 {
+        return "—".into();
+    }
+    let seconds = seconds.floor() as u64;
+    format!(
+        "{:02}:{:02}:{:02}",
+        seconds / 3600,
+        seconds / 60 % 60,
+        seconds % 60
+    )
+}
+#[cfg(test)]
+mod duration_tests {
+    #[test]
+    fn duration_uses_hours_minutes_seconds() {
+        for (seconds, expected) in [
+            (0.0, "00:00:00"),
+            (65.9, "00:01:05"),
+            (3661.0, "01:01:01"),
+            (360000.0, "100:00:00"),
+        ] {
+            assert_eq!(super::format_duration(seconds), expected);
+        }
+        assert_eq!(super::format_duration(f64::NAN), "—");
+        assert_eq!(super::format_duration(-1.0), "—");
     }
 }
 fn format_time(seconds: u64) -> String {
