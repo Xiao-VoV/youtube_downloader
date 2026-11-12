@@ -59,23 +59,37 @@ impl Downloader {
                     .label(tr("Finder 中显示"))
                     .disabled(count == 0)
                     .on_click(cx.listener(|this, _, _, cx| {
-                        let paths = this
-                            .history
-                            .entries
-                            .iter()
-                            .filter(|e| this.history_selected.contains(&e.id))
-                            .flat_map(|e| e.artifacts.iter().map(|a| a.path.clone()))
-                            .collect::<std::collections::BTreeSet<_>>();
-                        if paths.len() > 10 {
+                        let found = crate::reveal::locations(
+                            this.history
+                                .entries
+                                .iter()
+                                .filter(|e| this.history_selected.contains(&e.id)),
+                        );
+                        if found.paths.is_empty() {
+                            this.status = tr("没有可用的文件或保存目录");
+                            cx.notify();
+                            return;
+                        }
+                        if found.paths.len() > 10 {
                             this.status = tr("一次最多显示 10 个文件");
                             cx.notify();
                             return;
                         }
-                        for path in paths {
-                            if path.exists() {
-                                cx.reveal_path(&path);
-                            }
-                        }
+                        let missing = found.missing;
+                        let (tx, rx) = async_channel::bounded(1);
+                        std::thread::spawn(move || {
+                            let result = crate::reveal::reveal(&found.paths);
+                            let text = match result {
+                                Ok(()) => format!(
+                                    "{} · {} {missing}",
+                                    tr("已请求 Finder 显示"),
+                                    tr("不可用记录")
+                                ),
+                                Err(e) => e,
+                            };
+                            let _ = tx.send_blocking(crate::messages::Update::Notice(text));
+                        });
+                        Self::listen(rx, cx);
                     })),
             )
             .child(

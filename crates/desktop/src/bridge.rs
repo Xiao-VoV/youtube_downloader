@@ -31,6 +31,7 @@ impl Downloader {
     fn apply_update(&mut self, update: Update) {
         match update {
             Update::Health(text) => self.health = text,
+            Update::Notice(text) => self.status = text,
             Update::Tools(checking, result) => {
                 if checking {
                     self.tools.checking = false;

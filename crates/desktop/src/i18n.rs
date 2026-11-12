@@ -30,6 +30,12 @@ fn translate(source: &str, language: Language) -> &str {
         .unwrap_or(source)
 }
 const CATALOG: &[(&str, &str)] = &[
+    (
+        "没有可用的文件或保存目录",
+        "No existing file or save directory is available",
+    ),
+    ("已请求 Finder 显示", "Finder reveal requested"),
+    ("不可用记录", "Unavailable records"),
     ("视频大小", "File size"),
     ("UP主 / 频道", "Uploader / Channel"),
     ("码率", "Bitrate"),

@@ -4,6 +4,7 @@ use youtube_engine::*;
 // All process IO runs on engine-owned threads; this bounded bridge only carries UI data.
 pub(crate) enum Update {
     Health(String),
+    Notice(String),
     Tools(
         bool,
         std::result::Result<crate::tool_settings::ToolOutcome, String>,

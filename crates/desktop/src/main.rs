@@ -13,6 +13,7 @@ mod messages;
 mod preferences;
 mod preset_actions;
 mod preset_option;
+mod reveal;
 mod settings;
 mod tool_settings;
 mod view;
