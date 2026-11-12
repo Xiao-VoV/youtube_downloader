@@ -55,7 +55,8 @@ impl Downloader {
                             .gap_3()
                             .child(
                                 div()
-                                    .w(px(68.))
+                                    .w(px(96.))
+                                    .h_flex().items_center().gap_1()
                                     .flex_shrink_0()
                                     .text_sm()
                                     .font_semibold()
@@ -73,7 +74,7 @@ impl Downloader {
                         div()
                             .h_flex()
                             .gap_3()
-                            .child(div().w(px(68.)).flex_shrink_0())
+                            .child(div().w(px(96.)).flex_shrink_0())
                             .child(
                                 div()
                                     .id(SharedString::from(format!("effective-{label}")))

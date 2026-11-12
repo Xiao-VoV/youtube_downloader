@@ -93,24 +93,22 @@ impl Downloader {
         row
     }
     pub(super) fn profile_editor(&self, cx: &Context<Self>) -> Div {
-        div().v_flex().gap_4().max_w(px(880.)).mx_auto()
-            .children((!self.settings.store.presets.is_empty()).then(||div().p_3().rounded_lg().bg(cx.theme().muted).child(self.preset_switcher(cx))))
-            .child(super::design::section(cx,tr("配置名称"))
-                .child(Input::new(&self.settings.name))
+        div().v_flex().gap_4().max_w(px(960.)).mx_auto()
+            .children((!self.settings.store.presets.is_empty()).then(||div().pb_2().child(self.preset_switcher(cx))))
+            .child(super::fields::panel(tr("画质与格式"),IconName::Settings,cx)
+                .child(super::fields::row(div().text_sm().child(tr("配置名称")),Input::new(&self.settings.name).small(),cx))
                 .child(self.quality_controls(cx)))
-            .child(super::design::section(cx,tr("浏览器 Cookie"))
+            .child(super::fields::panel(tr("认证与网络"),IconName::Globe,cx)
                 .child(self.cookie_controls(cx))
-                .child(super::help::label("代理 URL","留空直连；支持 http(s)、socks4/5。含凭据的代理仅本次会话使用。","network-options"))
-                .child(Input::new(&self.settings.proxy)))
-            .child(super::design::section(cx,tr("保存位置…"))
-                .child(div().h_flex().gap_3().items_center()
-                    .child(Button::new("folder").small().ghost().icon(IconName::FolderOpen).label(tr("保存位置…"))
-                        .on_click(cx.listener(|this,_,_,cx|this.choose_directory(cx))))
-                    .child(muted(cx,self.output.as_ref().map(|p|p.display().to_string()).unwrap_or(tr("未选择")))))
-                .child(super::help::label("文件名模板","支持 title/id/channel/uploader/extractor。文件名必须以 .%(ext)s 结尾；不允许绝对路径或越界。","output-template"))
-                .child(Input::new(&self.settings.filename_template))
-                .child(super::help::label("子目录模板","留空直接保存；示例 %(extractor)s/%(channel)s。只允许安全相对路径。","output-template"))
-                .child(Input::new(&self.settings.folder_template)))
+                .child(super::fields::row(super::help::label("代理 URL","留空直连；支持 http(s)、socks4/5。含凭据的代理仅本次会话使用。","network-options"),Input::new(&self.settings.proxy).small(),cx)))
+            .child(super::fields::panel(tr("保存规则"),IconName::FolderOpen,cx)
+                .child(super::fields::row(div().text_sm().child(tr("保存位置…")),
+                    div().h_flex().items_center().gap_3()
+                        .child(muted(cx,self.output.as_ref().map(|p|p.display().to_string()).unwrap_or(tr("未选择"))).flex_1().min_w_0().overflow_hidden())
+                        .child(Button::new("folder").small().ghost().icon(IconName::FolderOpen).label(tr("保存位置…"))
+                            .on_click(cx.listener(|this,_,_,cx|this.choose_directory(cx)))),cx))
+                .child(super::fields::row(super::help::label("文件名模板","支持 title/id/channel/uploader/extractor。文件名必须以 .%(ext)s 结尾；不允许绝对路径或越界。","output-template"),Input::new(&self.settings.filename_template).small(),cx))
+                .child(super::fields::row(super::help::label("子目录模板","留空直接保存；示例 %(extractor)s/%(channel)s。只允许安全相对路径。","output-template"),Input::new(&self.settings.folder_template).small(),cx)))
             .child(self.advanced_controls(cx))
             .child(
                 div()
@@ -174,11 +172,7 @@ impl Downloader {
         section
     }
     fn quality_controls(&self, cx: &Context<Self>) -> Div {
-        let mut row = div().v_flex().gap_2().child(super::help::label(
-            "分辨率上限",
-            "最佳可用不限制高度；MP4仍限定H.264/AAC，MKV允许其他源编码。",
-            "format-selection",
-        ));
+        let mut row = div().v_flex();
         let mut heights = div().h_flex().gap_2().flex_wrap().child(
             Button::new("best-resolution")
                 .small()
@@ -217,7 +211,15 @@ impl Downloader {
                     })),
             );
         }
-        row = row.child(heights);
+        row = row.child(super::fields::row(
+            super::help::label(
+                "分辨率上限",
+                "最佳可用不限制高度；MP4仍限定H.264/AAC，MKV允许其他源编码。",
+                "format-selection",
+            ),
+            heights,
+            cx,
+        ));
         let mut formats = div().h_flex().gap_2();
         for (id, label, mode, container) in [
             ("mp4", "MP4", Mode::Video, VideoContainer::Mp4),
@@ -246,13 +248,17 @@ impl Downloader {
                     })),
             );
         }
-        row.child(super::help::label(
-            "输出格式",
-            "MP4兼容编码；MKV保留源编码；原音频不转码；MP3显式转码。",
-            "format-selection",
+        row.child(super::fields::row(
+            super::help::label(
+                "输出格式",
+                "MP4兼容编码；MKV保留源编码；原音频不转码；MP3显式转码。",
+                "format-selection",
+            ),
+            formats,
+            cx,
         ))
-        .child(formats)
     }
+
     fn cookie_controls(&self, cx: &Context<Self>) -> Div {
         let mut row = div().h_flex().gap_2().flex_wrap();
         for (id, label, browser) in [
@@ -281,23 +287,25 @@ impl Downloader {
                     })),
             );
         }
-        let mut section = div()
-            .v_flex()
-            .gap_2()
-            .child(super::help::label(
+        let mut section = div().v_flex().child(super::fields::row(
+            super::help::label(
                 "浏览器 Cookie",
                 "仅显式选择后读取浏览器Cookie；解析和下载共享选择，可能触发系统授权。",
                 "authentication-options",
-            ))
-            .child(row);
+            ),
+            row,
+            cx,
+        ));
         if self.settings.profile.cookies_browser.is_some() {
-            section = section
-                .child(super::help::label(
+            section = section.child(super::fields::row(
+                super::help::label(
                     "浏览器 Profile",
                     "留空默认；可填 Default、Profile 1 或目录路径。不接受复合cookie语法。",
                     "authentication-options",
-                ))
-                .child(Input::new(&self.settings.browser_profile));
+                ),
+                Input::new(&self.settings.browser_profile).small(),
+                cx,
+            ));
         }
         section
     }

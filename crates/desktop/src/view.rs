@@ -5,6 +5,7 @@ use gpui_kit::{
     *,
 };
 mod design;
+mod fields;
 mod help;
 mod history;
 mod profiles;
