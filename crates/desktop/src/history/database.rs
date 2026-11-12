@@ -4,7 +4,7 @@ use rusqlite::{Connection, OpenFlags, Transaction, params};
 use std::{
     fs::{self, OpenOptions},
     io::Read,
-    path::Path,
+    path::{Path, PathBuf},
     time::Duration,
 };
 fn error(_: impl std::fmt::Display) -> String {
