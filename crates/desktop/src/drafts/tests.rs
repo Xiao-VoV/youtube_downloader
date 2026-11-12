@@ -31,6 +31,38 @@ impl Drop for Fixture {
         let _ = fs::remove_dir_all(&self.0);
     }
 }
+#[test]
+fn task_profile_edits_never_mutate_other_task_or_source_preset() {
+    let f = Fixture::new();
+    let mut store = DraftStore::load_at(f.path());
+    let source = DownloadProfile::default();
+    let mut first = draft("first");
+    first.profile = source.clone();
+    let mut second = draft("second");
+    second.profile = source.clone();
+    store.upsert(first).unwrap();
+    store.upsert(second).unwrap();
+    let mut edited = store.entries[0].clone();
+    edited.profile.max_height = 2160;
+    edited.profile.extra_args = vec!["--limit-rate".into(), "2M".into()];
+    edited.state = DraftState::Queued;
+    store.upsert(edited).unwrap();
+    let reloaded = DraftStore::load_at(f.path());
+    assert_eq!(source.max_height, 1080);
+    assert_eq!(
+        reloaded
+            .entries
+            .iter()
+            .find(|d| d.id == "second")
+            .unwrap()
+            .profile,
+        source
+    );
+    let queued = reloaded.entries.iter().find(|d| d.id == "first").unwrap();
+    assert_eq!(queued.profile.max_height, 2160);
+    assert_eq!(queued.profile.extra_args[1], "2M");
+    assert_eq!(queued.state, DraftState::Queued);
+}
 fn draft(id: &str) -> Draft {
     Draft {
         id: id.into(),

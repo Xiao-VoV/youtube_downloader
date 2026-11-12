@@ -232,6 +232,15 @@ impl Downloader {
             cx.notify();
             return;
         }
+        if let Some(id) = &self.selected_draft {
+            if !self.drafts.entries.iter().any(|d| {
+                &d.id == id && d.state == crate::drafts::DraftState::Ready && d.media.is_some()
+            }) {
+                self.status = tr("等待解析");
+                cx.notify();
+                return;
+            }
+        }
         let profile = self.settings.snapshot(cx);
         // Edits on the review page must pass the same planner before spawning.
         if let Err(error) = self.engine.download_plan(request, &profile) {

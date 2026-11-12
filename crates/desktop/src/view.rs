@@ -183,6 +183,10 @@ impl Downloader {
                             if matches!(this.page, Page::TaskOptions | Page::Confirm) {
                                 this.save_draft_editor(cx);
                             }
+                            if page == Page::Profiles {
+                                this.selected_draft = None;
+                                this.pending = None;
+                            }
                             this.page = page;
                             cx.notify();
                         }
