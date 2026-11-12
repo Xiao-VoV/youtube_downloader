@@ -35,6 +35,11 @@ impl Downloader {
                     .as_ref()
                     .and_then(|p| p.ffprobe.as_ref()),
             ),
+            (
+                "Deno",
+                &self.tools.deno,
+                self.tools.effective.as_ref().and_then(|p| p.deno.as_ref()),
+            ),
         ] {
             let effective = effective
                 .map(|p| p.display().to_string())
@@ -54,7 +59,8 @@ impl Downloader {
                                     .flex_shrink_0()
                                     .text_sm()
                                     .font_semibold()
-                                    .child(label),
+                                    .child(label)
+                                    .children((label=="Deno").then(||Button::new("deno-help").ghost().xsmall().label("?").tooltip(tr("可选 JavaScript 运行时；用于 YouTube 挑战。仅本机配置，不自动安装。")))),
                             )
                             .child(
                                 div()

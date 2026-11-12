@@ -19,6 +19,17 @@ pub(super) fn muted(cx: &Context<Downloader>, text: impl Into<SharedString>) -> 
 }
 impl Render for Downloader {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        if self.status_observed != self.status {
+            self.status_observed = self.status.clone();
+            self.status_since = std::time::Instant::now();
+            cx.spawn(async move |this, cx| {
+                cx.background_executor()
+                    .timer(std::time::Duration::from_secs(6))
+                    .await;
+                let _ = this.update(cx, |_, cx| cx.notify());
+            })
+            .detach();
+        }
         div()
             .size_full()
             .h_flex()
@@ -48,16 +59,39 @@ impl Render for Downloader {
                                 Page::Settings => self.software_settings(cx),
                             }),
                     )
-                    .child(if self.status.is_empty() {
+                    .child(
                         div()
-                    } else {
-                        div()
+                            .h_flex()
+                            .h(px(26.))
+                            .flex_shrink_0()
+                            .items_center()
+                            .justify_between()
+                            .px_4()
                             .border_t_1()
                             .border_color(cx.theme().border)
-                            .px_6()
-                            .py_2()
-                            .child(muted(cx, self.status.clone()))
-                    }),
+                            .bg(cx.theme().muted)
+                            .child(muted(
+                                cx,
+                                if !self.status.is_empty()
+                                    && self.status_since.elapsed()
+                                        < std::time::Duration::from_secs(6)
+                                {
+                                    self.status.clone()
+                                } else if self.busy {
+                                    crate::i18n::tr("正在解析视频信息…")
+                                } else {
+                                    format!("{} · {}", crate::i18n::tr("就绪"), self.running.len())
+                                },
+                            ))
+                            .child(muted(
+                                cx,
+                                if self.tools.busy || self.tools.checking {
+                                    crate::i18n::tr("正在处理工具请求…")
+                                } else {
+                                    String::new()
+                                },
+                            )),
+                    ),
             )
     }
 }

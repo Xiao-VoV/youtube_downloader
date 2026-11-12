@@ -7,6 +7,7 @@ pub(crate) struct ToolSettings {
     pub yt_dlp: Entity<InputState>,
     pub ffmpeg: Entity<InputState>,
     pub ffprobe: Entity<InputState>,
+    pub deno: Entity<InputState>,
     pub release: Option<ReleaseInfo>,
     pub busy: bool,
     pub status: String,
@@ -26,6 +27,7 @@ pub(crate) fn discover() -> CustomToolPaths {
             .or_else(|| managed.map(|r| r.paths.yt_dlp)),
         ffmpeg: resolve_tool(Path::new("ffmpeg")).ok(),
         ffprobe: resolve_tool(Path::new("ffprobe")).ok(),
+        deno: resolve_tool(Path::new("deno")).ok(),
     }
 }
 impl ToolSettings {
@@ -50,6 +52,7 @@ impl ToolSettings {
             yt_dlp: input("yt_dlp", found.yt_dlp, cx),
             ffmpeg: input("ffmpeg", found.ffmpeg, cx),
             ffprobe: input("ffprobe", found.ffprobe, cx),
+            deno: input("deno", found.deno, cx),
             release: None,
             busy: false,
             status: tr("自定义路径优先，其次托管版本，最后系统 PATH。"),
@@ -70,6 +73,7 @@ impl ToolSettings {
             yt_dlp: value(&self.yt_dlp),
             ffmpeg: value(&self.ffmpeg),
             ffprobe: value(&self.ffprobe),
+            deno: value(&self.deno),
         }
     }
     pub fn fill(
@@ -82,6 +86,7 @@ impl ToolSettings {
             (&self.yt_dlp, &paths.yt_dlp),
             (&self.ffmpeg, &paths.ffmpeg),
             (&self.ffprobe, &paths.ffprobe),
+            (&self.deno, &paths.deno),
         ] {
             input.update(cx, |s, cx| {
                 s.set_value(
@@ -189,11 +194,18 @@ impl Downloader {
                     {
                         return Err("ffprobe check failed".into());
                     }
+                    if custom.deno.is_some() && !report.deno.as_ref().is_some_and(|t| t.healthy) {
+                        return Err("Deno check failed".into());
+                    }
                     out.status = format!(
-                        "yt-dlp {} · FFmpeg {} · ffprobe {}",
+                        "yt-dlp {} · FFmpeg {} · ffprobe {} · Deno {}",
                         report.yt_dlp.version.unwrap_or_default(),
                         report.ffmpeg.and_then(|t| t.version).unwrap_or_default(),
-                        report.ffprobe.and_then(|t| t.version).unwrap_or_default()
+                        report.ffprobe.and_then(|t| t.version).unwrap_or_default(),
+                        report
+                            .deno
+                            .and_then(|t| t.version)
+                            .unwrap_or_else(|| tr("未配置"))
                     );
                     if !matches!(operation, Operation::Validate) {
                         persist(&custom)?;
@@ -219,5 +231,6 @@ fn persist(paths: &CustomToolPaths) -> std::result::Result<(), String> {
     doc["yt_dlp"] = serde_json::json!(paths.yt_dlp);
     doc["ffmpeg"] = serde_json::json!(paths.ffmpeg);
     doc["ffprobe"] = serde_json::json!(paths.ffprobe);
+    doc["deno"] = serde_json::json!(paths.deno);
     crate::preferences::write_document(&path, &doc)
 }

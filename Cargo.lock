@@ -8184,6 +8184,7 @@ name = "youtube-desktop"
 version = "0.1.0"
 dependencies = [
  "async-channel",
+ "chrono",
  "gpui-kit",
  "rusqlite",
  "serde",

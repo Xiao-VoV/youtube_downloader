@@ -35,6 +35,7 @@ impl Fixture {
                 yt_dlp: executable,
                 ffmpeg: None,
                 ffprobe: None,
+                deno: None,
             },
             config,
         )

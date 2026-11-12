@@ -9,7 +9,7 @@ use std::{
 };
 impl Engine {
     pub fn health_check(&self, cancel: &CancelToken) -> HealthReport {
-        let check = |path: &Path, arg: &str| {
+        let check = |path: &Path, arg: &str, yt_dlp: bool| {
             let resolved = resolve_tool(path);
             let mut health = ToolHealth {
                 path: path.to_owned(),
@@ -26,7 +26,7 @@ impl Engine {
                     if let Some(path) = std::env::var_os("PATH") {
                         cmd.env("PATH", path);
                     }
-                    if arg == "--version" {
+                    if yt_dlp {
                         cmd.args([
                             "--ignore-config",
                             "--no-plugin-dirs",
@@ -58,13 +58,27 @@ impl Engine {
             }
             health
         };
-        let runtime_note = match resolve_tool(Path::new("deno")) {
-            Ok(path) => format!("Local Deno runtime enabled: {}", path.display()),
-            Err(_) => {
-                "No local Deno runtime found; JavaScript challenges may be unsupported.".into()
+        let deno = self
+            .tools
+            .deno
+            .as_ref()
+            .map(|p| check(p, "--version", false));
+        let runtime_note = match &deno {
+            Some(health) if health.healthy => {
+                format!("Selected Deno runtime enabled: {}", health.path.display())
             }
+            Some(_) => {
+                "Selected Deno runtime is unavailable; runtime-dependent plans will fail.".into()
+            }
+            None => "Deno runtime disabled; JavaScript challenges may be unsupported.".into(),
         };
-        HealthReport { yt_dlp: check(&self.tools.yt_dlp,"--version"), ffmpeg: self.tools.ffmpeg.as_ref().map(|p|check(p,"-version")), ffprobe: self.tools.ffprobe.as_ref().map(|p|check(p,"-version")), notes: vec![runtime_note, "Health checks do not prove site availability. Plugins and remote EJS components are disabled. No components are downloaded automatically.".into()] }
+        HealthReport {
+            yt_dlp: check(&self.tools.yt_dlp, "--version", true),
+            ffmpeg: self.tools.ffmpeg.as_ref().map(|p| check(p, "-version", false)),
+            ffprobe: self.tools.ffprobe.as_ref().map(|p| check(p, "-version", false)),
+            deno,
+            notes: vec![runtime_note, "Health checks do not prove site availability. Plugins and remote EJS components are disabled. No components are downloaded automatically.".into()],
+        }
     }
 }
 /// Explicit paths or executable names in PATH, resolved to absolute paths.
@@ -104,6 +118,7 @@ impl ToolPaths {
             yt_dlp: resolve_tool(Path::new("yt-dlp"))?,
             ffmpeg: resolve_tool(Path::new("ffmpeg")).ok(),
             ffprobe: resolve_tool(Path::new("ffprobe")).ok(),
+            deno: resolve_tool(Path::new("deno")).ok(),
         })
     }
 }

@@ -63,6 +63,8 @@ pub struct ToolPaths {
     pub yt_dlp: PathBuf,
     pub ffmpeg: Option<PathBuf>,
     pub ffprobe: Option<PathBuf>,
+    /// Selected local runtime. None disables JavaScript runtime execution.
+    pub deno: Option<PathBuf>,
 }
 #[derive(Clone, Debug)]
 pub struct EngineConfig {
@@ -193,5 +195,7 @@ pub struct HealthReport {
     pub yt_dlp: ToolHealth,
     pub ffmpeg: Option<ToolHealth>,
     pub ffprobe: Option<ToolHealth>,
+    #[serde(default)]
+    pub deno: Option<ToolHealth>,
     pub notes: Vec<String>,
 }

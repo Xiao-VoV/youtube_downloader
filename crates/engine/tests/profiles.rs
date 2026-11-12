@@ -6,6 +6,7 @@ fn engine() -> Engine {
             yt_dlp: PathBuf::from("/bin/sh"),
             ffmpeg: None,
             ffprobe: None,
+            deno: None,
         },
         EngineConfig::default(),
     )
@@ -134,6 +135,7 @@ fn executed_download_matches_preview_exactly() {
             yt_dlp: script,
             ffmpeg: None,
             ffprobe: None,
+            deno: None,
         },
         EngineConfig::default(),
     );

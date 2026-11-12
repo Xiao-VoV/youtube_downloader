@@ -28,6 +28,7 @@ pub struct CustomToolPaths {
     pub yt_dlp: Option<PathBuf>,
     pub ffmpeg: Option<PathBuf>,
     pub ffprobe: Option<PathBuf>,
+    pub deno: Option<PathBuf>,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ToolSource {
@@ -97,6 +98,7 @@ impl ToolManager {
                 yt_dlp,
                 ffmpeg: optional(&custom.ffmpeg, "ffmpeg")?,
                 ffprobe: optional(&custom.ffprobe, "ffprobe")?,
+                deno: optional(&custom.deno, "deno")?,
             },
             yt_dlp_source,
         })

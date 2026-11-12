@@ -30,6 +30,10 @@ fn translate(source: &str, language: Language) -> &str {
         .unwrap_or(source)
 }
 const CATALOG: &[(&str, &str)] = &[
+    (
+        "可选 JavaScript 运行时；用于 YouTube 挑战。仅本机配置，不自动安装。",
+        "Optional JavaScript runtime for YouTube challenges. Local tools only; never installed automatically.",
+    ),
     ("视频下载器", "Video Downloader"),
     ("VIDEO DOWNLOADER / 新建任务", "VIDEO DOWNLOADER / NEW TASK"),
     ("自动探测", "Auto-detect"),

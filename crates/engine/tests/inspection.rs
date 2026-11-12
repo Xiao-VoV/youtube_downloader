@@ -15,6 +15,7 @@ fn ffprobe_fields_are_optional_and_format_family_is_not_extension() {
             yt_dlp: PathBuf::from("/bin/sh"),
             ffmpeg: None,
             ffprobe: Some(tool.clone()),
+            deno: None,
         },
         EngineConfig::default(),
     );

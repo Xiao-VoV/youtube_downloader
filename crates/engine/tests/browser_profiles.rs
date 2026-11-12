@@ -6,6 +6,7 @@ fn engine() -> Engine {
             yt_dlp: PathBuf::from("/bin/sh"),
             ffmpeg: None,
             ffprobe: None,
+            deno: None,
         },
         EngineConfig::default(),
     )

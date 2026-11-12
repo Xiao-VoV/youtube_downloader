@@ -6,6 +6,7 @@ fn engine() -> Engine {
             yt_dlp: PathBuf::from("/bin/sh"),
             ffmpeg: None,
             ffprobe: None,
+            deno: None,
         },
         EngineConfig::default(),
     )
@@ -28,16 +29,14 @@ fn safe_templates_and_private_temp_are_planned() {
     };
     let plan = engine().download_plan(&request(), &p).unwrap();
     assert!(plan.argv.iter().any(|v| v == "home:/tmp/template-output"));
-    assert!(
-        plan.argv
-            .iter()
-            .any(|v| v == "temp:/tmp/template-output/.shiguang-tmp/a")
-    );
-    assert!(
-        plan.argv
-            .iter()
-            .any(|v| v == "%(extractor)s/%(channel)s/%(title).180B [%(id)s].%(ext)s")
-    );
+    assert!(plan
+        .argv
+        .iter()
+        .any(|v| v == "temp:/tmp/template-output/.shiguang-tmp/a"));
+    assert!(plan
+        .argv
+        .iter()
+        .any(|v| v == "%(extractor)s/%(channel)s/%(title).180B [%(id)s].%(ext)s"));
     let old: DownloadProfile = serde_json::from_str("{}").unwrap();
     assert_eq!(old.filename_template, "%(title).180B [%(id)s].%(ext)s");
     assert!(old.folder_template.is_none());
@@ -104,6 +103,7 @@ fn existing_skipped_file_is_not_a_success() {
             yt_dlp: tool,
             ffmpeg: None,
             ffprobe: None,
+            deno: None,
         },
         EngineConfig::default(),
     );
@@ -119,11 +119,10 @@ fn existing_skipped_file_is_not_a_success() {
     );
     assert_eq!(fs::read(output.join("existing.mp4")).unwrap(), b"original");
     assert!(output.join(".shiguang-tmp/a").is_dir());
-    assert!(
-        root.file_name()
-            .unwrap()
-            .to_string_lossy()
-            .starts_with("yt-template-conflict-")
-    );
+    assert!(root
+        .file_name()
+        .unwrap()
+        .to_string_lossy()
+        .starts_with("yt-template-conflict-"));
     fs::remove_dir_all(root).unwrap();
 }

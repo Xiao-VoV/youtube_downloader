@@ -42,7 +42,7 @@ impl Downloader {
             Err(error) => return body.child(muted(cx, error)),
         };
         body = body.child(self.history_pagination(page.total, cx));
-        let mut table = div().v_flex().w(px(1120.)).child(self.history_header(cx));
+        let mut table = div().v_flex().w(px(1320.)).child(self.history_header(cx));
         for (index, entry) in page.entries.iter().enumerate() {
             table = table.child(self.history_row(index, entry, cx));
         }
@@ -55,7 +55,7 @@ impl Downloader {
                 .rounded_lg()
                 .overflow_hidden()
                 .bg(cx.theme().background)
-                .pb_2()
+                .pb(px(20.))
                 .child(
                     div()
                         .id("history-table-horizontal")
@@ -63,6 +63,9 @@ impl Downloader {
                         .overflow_x_scroll()
                         .restrict_scroll_to_axis()
                         .track_scroll(&self.history_scroll)
+                        // Padding belongs to the tracked viewport, so the overlay
+                        // scrollbar has a dedicated gutter after the final row.
+                        .pb(px(20.))
                         .child(table),
                 )
                 .child(Scrollbar::horizontal(&self.history_scroll).mode(ScrollbarMode::Always)),
@@ -146,7 +149,7 @@ impl Downloader {
             ("名称", Column::Title, 220.),
             ("状态", Column::Status, 80.),
             ("来源", Column::Site, 90.),
-            ("下载时间", Column::Time, 145.),
+            ("下载时间", Column::Time, 180.),
             ("分辨率", Column::Resolution, 90.),
             ("格式", Column::Format, 80.),
             ("大小", Column::Size, 90.),
@@ -185,9 +188,9 @@ impl Downloader {
                     })),
             );
         }
-        row.child(header_label(cx, "原始链接", 48.))
-            .child(header_label(cx, "保存位置", 48.))
-            .child(header_label(cx, "操作", 48.))
+        row.child(header_label(cx, "原始链接", 96.))
+            .child(header_label(cx, "保存位置", 96.))
+            .child(header_label(cx, "操作", 64.))
     }
     fn history_row(&self, index: usize, entry: &HistoryEntry, cx: &Context<Self>) -> Div {
         let url = if entry.metadata.original_url.is_empty() {
@@ -220,7 +223,7 @@ impl Downloader {
             ))
             .child(status_badge(cx, entry.status))
             .child(cell(cx, entry.metadata.source_site.clone(), 90.))
-            .child(cell(cx, format_time(entry.started_at), 145.))
+            .child(cell(cx, format_time(entry.started_at), 180.))
             .child(cell(
                 cx,
                 entry
@@ -237,7 +240,7 @@ impl Downloader {
             ))
             .child(cell(cx, format!("{:.1} MB", size(entry) as f64 / 1e6), 90.))
             .child(
-                div().w(px(48.)).flex_shrink_0().child(
+                div().w(px(96.)).flex_shrink_0().child(
                     Button::new(("history-url", index))
                         .ghost()
                         .xsmall()
@@ -248,7 +251,7 @@ impl Downloader {
                 ),
             );
         row = row.child(
-            div().w(px(48.)).flex_shrink_0().child(
+            div().w(px(96.)).flex_shrink_0().child(
                 Button::new(("history-path", index))
                     .ghost()
                     .xsmall()
@@ -267,7 +270,7 @@ impl Downloader {
             ),
         );
         row.child(
-            div().w(px(48.)).flex_shrink_0().child(
+            div().w(px(64.)).flex_shrink_0().child(
                 Button::new(("history-delete", index))
                     .ghost()
                     .xsmall()
@@ -360,30 +363,26 @@ pub(super) fn scroll_cell(id: (&'static str, usize), text: String, width: f32) -
         })
         .child(div().whitespace_nowrap().text_xs().child(text))
 }
+fn format_time(seconds: u64) -> String {
+    chrono::DateTime::from_timestamp(i64::try_from(seconds).unwrap_or(i64::MAX), 0)
+        .map(|time| {
+            time.with_timezone(&chrono::Local)
+                .format("%Y-%m-%d %H:%M %:z")
+                .to_string()
+        })
+        .unwrap_or_else(|| "—".into())
+}
 #[cfg(test)]
 mod tests {
     #[test]
-    fn utc_dates_handle_epoch_and_leap_day() {
-        assert_eq!(super::format_time(0), "1970-01-01 00:00 UTC");
-        assert_eq!(super::format_time(1709164800), "2024-02-29 00:00 UTC");
+    fn display_uses_local_timezone_without_changing_timestamp() {
+        use chrono::TimeZone;
+        let expected = chrono::Local
+            .timestamp_opt(1709164800, 0)
+            .unwrap()
+            .format("%Y-%m-%d %H:%M %:z")
+            .to_string();
+        assert_eq!(super::format_time(1709164800), expected);
+        assert_eq!(super::format_time(u64::MAX), "—");
     }
-}
-fn format_time(seconds: u64) -> String {
-    // UTC avoids an additional locale/timezone dependency; persist Unix seconds.
-    let days = (seconds / 86400) as i64;
-    let z = days + 719468;
-    let era = z / 146097;
-    let doe = z - era * 146097;
-    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
-    let mut y = yoe + era * 400;
-    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-    let mp = (5 * doy + 2) / 153;
-    let d = doy - (153 * mp + 2) / 5 + 1;
-    let m = mp + if mp < 10 { 3 } else { -9 };
-    y += if m <= 2 { 1 } else { 0 };
-    format!(
-        "{y:04}-{m:02}-{d:02} {:02}:{:02} UTC",
-        seconds % 86400 / 3600,
-        seconds % 3600 / 60
-    )
 }

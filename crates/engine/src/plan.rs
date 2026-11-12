@@ -80,8 +80,13 @@ impl Engine {
         .into_iter()
         .map(str::to_owned)
         .collect::<Vec<_>>();
-        if let Ok(deno) = resolve_tool(Path::new("deno")) {
-            argv.extend(["--js-runtimes".into(), format!("deno:{}", deno.display())]);
+        if let Some(selected) = &self.tools.deno {
+            // Runtime discovery belongs to ToolPaths/ToolManager, never a plan.
+            let deno = resolve_tool(selected)?;
+            let deno = deno
+                .to_str()
+                .ok_or_else(|| invalid("Deno path must be UTF-8"))?;
+            argv.extend(["--js-runtimes".into(), format!("deno:{deno}")]);
         }
         let proxy = profile.proxy.as_deref().unwrap_or("");
         if !proxy.is_empty() {
