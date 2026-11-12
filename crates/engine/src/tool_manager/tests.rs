@@ -68,12 +68,13 @@ impl Transport for Fake {
             br#"{"tag_name":"2026.01.01"}"#.to_vec()
         } else if url.ends_with("/SHA2-256SUMS") {
             format!(
-                "{:x}  yt-dlp_macos\n",
+                "{:x}  {}\n",
                 Sha256::digest(if self.bad_checksum {
                     b"wrong"
                 } else {
                     self.payload.as_slice()
-                })
+                }),
+                asset()
             )
             .into_bytes()
         } else if self.fail_asset {
