@@ -30,6 +30,19 @@ fn translate(source: &str, language: Language) -> &str {
         .unwrap_or(source)
 }
 const CATALOG: &[(&str, &str)] = &[
+    ("下载预览", "Download preview"),
+    ("本次下载选项", "Options for this download"),
+    ("编辑本次下载选项", "Edit task options"),
+    ("查看命令并加入队列", "Review command and queue"),
+    ("可用格式", "available formats"),
+    (
+        "仅作用于当前任务，不会修改常用配置或其他任务。",
+        "Changes apply only to this task, not saved presets or other tasks.",
+    ),
+    (
+        "保存到本次任务并返回预览",
+        "Save to task and return to preview",
+    ),
     ("界面偏好", "Interface preferences"),
     ("等待解析", "Waiting to analyze"),
     ("正在解析", "Analyzing"),

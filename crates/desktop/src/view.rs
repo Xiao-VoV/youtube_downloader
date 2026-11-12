@@ -57,6 +57,7 @@ impl Render for Downloader {
                                 Page::History => self.history_view(cx),
                                 Page::New => self.draft_home(cx),
                                 Page::Detail => self.draft_detail(cx),
+                                Page::TaskOptions => self.draft_options(cx),
                                 Page::Profiles => self.profile_editor(cx),
                                 Page::Confirm => self.confirmation(cx),
                                 Page::Settings => self.software_settings(cx),
@@ -142,7 +143,9 @@ impl Downloader {
             ("history", "下载历史", "clock", Page::History),
             ("profiles", "下载配置", "sliders-horizontal", Page::Profiles),
         ] {
-            let selected = self.page == page || (page == Page::New && self.page == Page::Confirm);
+            let selected = self.page == page
+                || (page == Page::New
+                    && matches!(self.page, Page::Detail | Page::TaskOptions | Page::Confirm));
             nav = nav.child(
                 div()
                     .id(id)
@@ -177,7 +180,7 @@ impl Downloader {
                             this.refresh_preset_select(window, cx);
                         }
                         if !this.busy || matches!(page, Page::Tasks | Page::History) {
-                            if this.page == Page::Detail || this.page == Page::Confirm {
+                            if matches!(this.page, Page::TaskOptions | Page::Confirm) {
                                 this.save_draft_editor(cx);
                             }
                             this.page = page;
@@ -195,7 +198,7 @@ impl Downloader {
                     .icon(IconName::Settings)
                     .label(crate::i18n::tr("软件设置"))
                     .on_click(cx.listener(|this, _, _, cx| {
-                        if matches!(this.page, Page::Detail | Page::Confirm) {
+                        if matches!(this.page, Page::TaskOptions | Page::Confirm) {
                             this.save_draft_editor(cx);
                         }
                         this.page = Page::Settings;
@@ -286,7 +289,8 @@ impl Downloader {
             Page::New => "新建下载",
             Page::Profiles => "下载配置",
             Page::Confirm => "确认下载",
-            Page::Detail => "下载配置",
+            Page::Detail => "下载预览",
+            Page::TaskOptions => "本次下载选项",
             Page::Settings => "软件设置",
         };
         div()

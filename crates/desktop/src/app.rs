@@ -239,13 +239,21 @@ impl Downloader {
             cx.notify();
             return;
         }
-        let request = self.pending.take().expect("validated pending request");
-        if let Some(id) = self.selected_draft.take() {
+        if let Some(id) = self.selected_draft.clone() {
             if let Some(mut draft) = self.drafts.entries.iter().find(|d| d.id == id).cloned() {
+                draft.profile = profile.clone();
+                draft.profile.mode = request.mode;
+                draft.profile.output_dir = Some(request.output_dir.clone());
                 draft.state = crate::drafts::DraftState::Queued;
-                let _ = self.drafts.upsert(draft);
+                if let Err(error) = self.drafts.upsert(draft) {
+                    self.status = error;
+                    cx.notify();
+                    return;
+                }
             }
         }
+        let request = self.pending.take().expect("validated pending request");
+        self.selected_draft = None;
         self.queued.push_back((request, profile));
         self.start_queued(cx);
         self.page = crate::settings::Page::Tasks;

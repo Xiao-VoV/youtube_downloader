@@ -133,42 +133,95 @@ impl Downloader {
         panel
     }
     pub(super) fn draft_detail(&self, cx: &Context<Self>) -> Div {
+        let draft = self
+            .selected_draft
+            .as_ref()
+            .and_then(|id| self.drafts.entries.iter().find(|d| &d.id == id));
+        let mut body = div().v_flex().gap_4().max_w(px(900.)).mx_auto();
+        if let Some(d) = draft {
+            let title = d
+                .media
+                .as_ref()
+                .map(|m| m.title.clone())
+                .unwrap_or(d.url.clone());
+            body = body.child(
+                design::section(cx, title)
+                    .child(muted(cx, d.url.clone()))
+                    .child(muted(cx, format!("{:?}", d.state)))
+                    .children(d.media.as_ref().map(|m| {
+                        muted(
+                            cx,
+                            format!(
+                                "{} · {} {}",
+                                m.channel
+                                    .as_deref()
+                                    .or(m.uploader.as_deref())
+                                    .unwrap_or("—"),
+                                m.formats.len(),
+                                crate::i18n::tr("可用格式")
+                            ),
+                        )
+                    }))
+                    .children(d.error.as_ref().map(|e| muted(cx, e.clone()))),
+            );
+        }
+        body.child(self.download_summary(cx)).child(
+            div()
+                .h_flex()
+                .gap_2()
+                .child(
+                    Button::new("preview-edit")
+                        .small()
+                        .icon(IconName::Settings)
+                        .label(crate::i18n::tr("编辑本次下载选项"))
+                        .on_click(cx.listener(|this, _, _, cx| {
+                            this.page = Page::TaskOptions;
+                            cx.notify();
+                        })),
+                )
+                .child(
+                    Button::new("preview-review")
+                        .small()
+                        .primary()
+                        .label(crate::i18n::tr("查看命令并加入队列"))
+                        .disabled(self.media.is_none())
+                        .on_click(cx.listener(|this, _, _, cx| this.download(cx))),
+                )
+                .child(
+                    Button::new("preview-back")
+                        .small()
+                        .ghost()
+                        .label(crate::i18n::tr("返回"))
+                        .on_click(cx.listener(|this, _, _, cx| {
+                            this.page = Page::New;
+                            cx.notify();
+                        })),
+                ),
+        )
+    }
+    pub(super) fn draft_options(&self, cx: &Context<Self>) -> Div {
         div()
             .v_flex()
             .gap_4()
+            .max_w(px(960.))
+            .mx_auto()
             .child(
-                div()
-                    .h_flex()
-                    .gap_3()
+                design::section(cx, crate::i18n::tr("本次下载选项"))
+                    .child(muted(
+                        cx,
+                        crate::i18n::tr("仅作用于当前任务，不会修改常用配置或其他任务。"),
+                    ))
                     .child(
-                        Button::new("draft-back")
-                            .ghost()
-                            .small()
-                            .label(crate::i18n::tr("返回"))
-                            .on_click(cx.listener(|this, _, _, cx| {
-                                this.save_draft_editor(cx);
-                                this.page = Page::New;
-                                cx.notify();
-                            })),
-                    )
-                    .child(
-                        Button::new("draft-review")
+                        Button::new("save-task-options")
                             .primary()
                             .small()
-                            .label(crate::i18n::tr("下一步：查看命令"))
-                            .disabled(self.media.is_none())
+                            .label(crate::i18n::tr("保存到本次任务并返回预览"))
                             .on_click(cx.listener(|this, _, _, cx| {
-                                if this.save_draft_editor(cx) {
-                                    this.download(cx);
-                                }
+                                this.save_draft_editor(cx);
+                                this.page = Page::Detail;
+                                cx.notify();
                             })),
                     ),
-            )
-            .child(
-                self.media
-                    .as_ref()
-                    .map(|m| m.title.clone())
-                    .unwrap_or_else(|| "解析尚未完成".into()),
             )
             .child(self.profile_editor(cx))
     }

@@ -159,7 +159,7 @@ impl Downloader {
         }
         body
     }
-    fn download_summary(&self, cx: &Context<Self>) -> Div {
+    pub(super) fn download_summary(&self, cx: &Context<Self>) -> Div {
         let profile = self.settings.snapshot(cx);
         let quality = if self.mode != youtube_engine::Mode::Video {
             tr("音频")
@@ -341,7 +341,11 @@ impl Downloader {
                     )
                     .child(Button::new("back").label(tr("返回")).on_click(cx.listener(
                         |this, _, _, cx| {
-                            this.page = Page::New;
+                            this.page = if this.selected_draft.is_some() {
+                                Page::Detail
+                            } else {
+                                Page::New
+                            };
                             cx.notify();
                         },
                     ))),

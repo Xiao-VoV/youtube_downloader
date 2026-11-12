@@ -151,7 +151,14 @@ impl Downloader {
                         output_dir,
                         format_id: None,
                         task_id: d.id.clone(),
-                        attempt_id: d.id,
+                        attempt_id: format!(
+                            "{}-{}",
+                            d.id,
+                            std::time::SystemTime::now()
+                                .duration_since(std::time::UNIX_EPOCH)
+                                .unwrap_or_default()
+                                .as_nanos()
+                        ),
                     },
                     d.profile,
                 ));

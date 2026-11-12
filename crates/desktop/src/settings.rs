@@ -19,6 +19,7 @@ pub(crate) enum Page {
     Settings,
     Confirm,
     Detail,
+    TaskOptions,
 }
 
 pub(crate) struct Settings {

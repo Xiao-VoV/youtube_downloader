@@ -112,10 +112,10 @@ fn route_event(
     tasks: &mut std::collections::BTreeMap<String, crate::jobs::ActiveDownload>,
     event: EngineEvent,
 ) {
-    if event.task_id != event.attempt_id {
-        return;
-    }
     if let Some(task) = tasks.get_mut(&event.task_id) {
+        if task.attempt_id != event.attempt_id {
+            return;
+        }
         task.status = match event.kind {
             EventKind::Starting => tr("正在启动…"),
             EventKind::PostProcessing => tr("正在合并或转换…"),
@@ -159,6 +159,7 @@ mod tests {
                 id.to_owned(),
                 ActiveDownload {
                     title: id.into(),
+                    attempt_id: id.into(),
                     tool_path: Default::default(),
                     title_scroll: gpui_kit::ScrollHandle::new(),
                     status: "ready".into(),

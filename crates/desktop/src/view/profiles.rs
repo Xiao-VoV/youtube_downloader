@@ -94,7 +94,7 @@ impl Downloader {
     }
     pub(super) fn profile_editor(&self, cx: &Context<Self>) -> Div {
         div().v_flex().gap_4().max_w(px(960.)).mx_auto()
-            .children((!self.settings.store.presets.is_empty()).then(||div().pb_2().child(self.preset_switcher(cx))))
+            .children((self.page!=Page::TaskOptions && !self.settings.store.presets.is_empty()).then(||div().pb_2().child(self.preset_switcher(cx))))
             .child(super::fields::panel(tr("画质与格式"),IconName::Settings,cx)
                 .child(super::fields::row(div().text_sm().child(tr("配置名称")),Input::new(&self.settings.name).small(),cx))
                 .child(self.quality_controls(cx)))
@@ -123,7 +123,7 @@ impl Downloader {
                     .child(
                         Button::new("update-preset").small()
                             .label(tr("保存修改"))
-                            .disabled(self.page==Page::Detail || self.settings.store.active_preset_id.is_none())
+                            .disabled(self.page==Page::TaskOptions || self.settings.store.active_preset_id.is_none())
                             .on_click(cx.listener(|this, _, _, cx| this.update_preset(cx))),
                     )
                     .child(
@@ -138,14 +138,12 @@ impl Downloader {
                                     tr("删除配置")
                                 },
                             )
-                            .disabled(self.page==Page::Detail || self.settings.store.active_preset_id.is_none())
+                            .disabled(self.page==Page::TaskOptions || self.settings.store.active_preset_id.is_none())
                             .on_click(cx.listener(|this, _, _, cx| this.delete_preset(cx))),
                     )
                     .child(Button::new("use").label(tr("应用并返回")).on_click(cx.listener(
                         |this, _, _, cx| {
-                            this.media = None;
-                            if this.page==Page::Detail {this.save_draft_editor(cx);}
-                            this.page = Page::New;
+                            if this.page==Page::TaskOptions {this.save_draft_editor(cx);this.page=Page::Detail;}else{this.media=None;this.page=Page::New;}
                             cx.notify();
                         },
                     ))),

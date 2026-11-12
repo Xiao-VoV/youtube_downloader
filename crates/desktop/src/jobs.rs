@@ -6,6 +6,7 @@ use youtube_engine::*;
 
 pub(crate) struct ActiveDownload {
     pub title: String,
+    pub attempt_id: String,
     pub tool_path: std::path::PathBuf,
     pub title_scroll: ScrollHandle,
     pub status: String,
@@ -20,6 +21,7 @@ impl Downloader {
         cx: &mut Context<Self>,
     ) {
         let id = request.task_id.clone();
+        let attempt_id = request.attempt_id.clone();
         let media = self
             .drafts
             .entries
@@ -65,6 +67,7 @@ impl Downloader {
             id.clone(),
             ActiveDownload {
                 title,
+                attempt_id,
                 tool_path: self
                     .tools
                     .effective
