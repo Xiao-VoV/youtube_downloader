@@ -32,6 +32,30 @@ impl Downloader {
         match update {
             Update::Health(text) => self.health = text,
             Update::Notice(text) => self.status = text,
+            Update::HistoryDelete(results) => {
+                let mut failures = Vec::new();
+                let mut deleted = 0;
+                for (id, result) in results {
+                    match result.and_then(|_| self.history.delete(&id)) {
+                        Ok(()) => {
+                            self.history_selected.remove(&id);
+                            deleted += 1;
+                        }
+                        Err(e) => failures.push(e),
+                    }
+                }
+                self.history_page = 0;
+                self.status = if failures.is_empty() {
+                    format!("{} {deleted}", tr("已删除记录"))
+                } else {
+                    format!(
+                        "{} {deleted} · {} {}",
+                        tr("已删除记录"),
+                        tr("删除失败"),
+                        failures.join("; ")
+                    )
+                };
+            }
             Update::Tools(checking, result) => {
                 if checking {
                     self.tools.checking = false;

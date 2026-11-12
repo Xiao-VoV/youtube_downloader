@@ -97,37 +97,11 @@ impl Downloader {
                     .ghost()
                     .small()
                     .icon(IconName::Delete)
-                    .label(tr(if self.history_delete.as_deref() == Some("bulk") {
-                        "确认删除记录"
-                    } else {
-                        "删除记录"
-                    }))
+                    .label(tr("删除记录"))
                     .disabled(count == 0 || running)
-                    .on_click(cx.listener(|this, _, _, cx| {
-                        if this.history_delete.as_deref() != Some("bulk") {
-                            this.history_delete = Some("bulk".into());
-                            cx.notify();
-                            return;
-                        }
-                        let ids = this.history_selected.iter().cloned().collect::<Vec<_>>();
-                        let mut failed = 0;
-                        for id in ids {
-                            match this.history.delete(&id) {
-                                Ok(()) => {
-                                    this.history_selected.remove(&id);
-                                }
-                                Err(_) => failed += 1,
-                            }
-                        }
-                        this.history_delete = None;
-                        this.history_page = 0;
-                        this.status = if failed == 0 {
-                            tr("历史记录已删除，媒体文件保留。")
-                        } else {
-                            format!("{} {failed}", tr("删除失败"))
-                        };
-                        cx.notify();
-                    })),
+                    .on_click(
+                        cx.listener(|this, _, window, cx| this.confirm_history_delete(window, cx)),
+                    ),
             )
             .child(
                 Button::new("bulk-clear")

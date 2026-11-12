@@ -30,6 +30,11 @@ fn translate(source: &str, language: Language) -> &str {
         .unwrap_or(source)
 }
 const CATALOG: &[(&str, &str)] = &[
+    ("运行中的任务不能删除", "Running tasks cannot be deleted"),
+    ("删除历史记录", "Delete history records"),
+    ("选中记录数量：", "Selected records:"),
+    ("同时将媒体文件移到废纸篓", "Also move media files to Trash"),
+    ("已删除记录", "Deleted records"),
     (
         "没有可用的文件或保存目录",
         "No existing file or save directory is available",

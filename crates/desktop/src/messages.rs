@@ -5,6 +5,7 @@ use youtube_engine::*;
 pub(crate) enum Update {
     Health(String),
     Notice(String),
+    HistoryDelete(Vec<(String, std::result::Result<(), String>)>),
     Tools(
         bool,
         std::result::Result<crate::tool_settings::ToolOutcome, String>,
