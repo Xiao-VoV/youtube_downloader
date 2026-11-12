@@ -4,17 +4,68 @@ use crate::i18n::tr;
 use crate::{app::Downloader, settings::Page};
 use gpui_kit::{
     base::{Scrollbar, ScrollbarMode},
-    component::{
-        button::*,
-        input::{Input, Textarea},
-        *,
-    },
+    component::{button::*, input::Textarea, *},
     *,
 };
 impl Downloader {
     pub(super) fn tasks(&self, cx: &Context<Self>) -> Div {
         let mut body = div().v_flex().gap_3();
-        if self.running.is_empty() {
+        for (index, (request, _)) in self.queued.iter().enumerate() {
+            body = body.child(
+                super::design::section(cx, request.url.clone())
+                    .child(muted(cx, crate::i18n::tr("等待下载")))
+                    .child(
+                        Button::new(("queue-remove", index))
+                            .ghost()
+                            .small()
+                            .label(crate::i18n::tr("取消"))
+                            .on_click(cx.listener(move |this, _, _, cx| {
+                                if let Some((r, _)) = this.queued.remove(index) {
+                                    let _ = this.drafts.remove(&r.task_id);
+                                }
+                                cx.notify();
+                            })),
+                    ),
+            );
+        }
+        for (index, d) in self
+            .drafts
+            .entries
+            .iter()
+            .filter(|d| {
+                d.state == crate::drafts::DraftState::Queued
+                    && !self.running.contains_key(&d.id)
+                    && !self.queued.iter().any(|(r, _)| r.task_id == d.id)
+            })
+            .enumerate()
+        {
+            let id = d.id.clone();
+            body = body.child(
+                super::design::section(
+                    cx,
+                    d.media
+                        .as_ref()
+                        .map(|m| m.title.clone())
+                        .unwrap_or(d.url.clone()),
+                )
+                .child(
+                    Button::new(("queue-resume", index))
+                        .small()
+                        .label(crate::i18n::tr("恢复队列"))
+                        .on_click(cx.listener(move |this, _, _, cx| {
+                            this.resume_queued(&id, cx);
+                        })),
+                ),
+            );
+        }
+        if self.running.is_empty()
+            && self.queued.is_empty()
+            && !self
+                .drafts
+                .entries
+                .iter()
+                .any(|d| d.state == crate::drafts::DraftState::Queued)
+        {
             return body.child(
                 div()
                     .v_flex()
@@ -105,136 +156,6 @@ impl Downloader {
                             })),
                     ),
             );
-        }
-        body
-    }
-    pub(super) fn new_download(&self, cx: &Context<Self>) -> Div {
-        let mut body = div()
-            .v_flex()
-            .gap_6()
-            .w_full()
-            .max_w(px(900.))
-            .mx_auto()
-            .py_6()
-            .child(
-                div()
-                    .h_flex()
-                    .items_center()
-                    .gap_3()
-                    .child(
-                        div()
-                            .w(px(44.))
-                            .h(px(44.))
-                            .rounded_xl()
-                            .bg(super::design::accent())
-                            .text_color(rgb(0xffffff))
-                            .flex()
-                            .items_center()
-                            .justify_center()
-                            .child(super::design::glyph("arrow-down-to-line")),
-                    )
-                    .child(
-                        div()
-                            .v_flex()
-                            .gap_1()
-                            .child(div().text_xl().font_semibold().child(tr("新建任务")))
-                            .child(muted(cx, tr("粘贴视频链接，选择你的下载方式。"))),
-                    ),
-            )
-            .child(
-                super::design::section(cx, tr("视频链接"))
-                    .child(Input::new(&self.url).disabled(self.busy))
-                    .child(
-                        div()
-                            .h_flex()
-                            .items_center()
-                            .justify_between()
-                            .child(
-                                Button::new("paste-url")
-                                    .ghost()
-                                    .small()
-                                    .icon(super::design::glyph("clipboard"))
-                                    .label(tr("从剪贴板粘贴"))
-                                    .disabled(self.busy)
-                                    .on_click(cx.listener(|this, _, window, cx| {
-                                        if let Some(text) =
-                                            cx.read_from_clipboard().and_then(|i| i.text())
-                                        {
-                                            this.url
-                                                .update(cx, |s, cx| s.set_value(text, window, cx));
-                                            this.media = None;
-                                            cx.notify();
-                                        }
-                                    })),
-                            )
-                            .child(
-                                Button::new("parse")
-                                    .primary()
-                                    .small()
-                                    .icon(IconName::ArrowRight)
-                                    .label(tr("解析链接"))
-                                    .disabled(self.busy)
-                                    .on_click(cx.listener(|this, _, _, cx| this.probe(cx))),
-                            ),
-                    ),
-            )
-            .child(
-                super::design::section(cx, tr("使用下载配置"))
-                    .child(self.preset_switcher(cx))
-                    .child(
-                        div()
-                            .h_flex()
-                            .items_center()
-                            .gap_3()
-                            .pt_3()
-                            .border_t_1()
-                            .border_color(cx.theme().border)
-                            .child(super::design::glyph("folder"))
-                            .child(
-                                muted(
-                                    cx,
-                                    self.output
-                                        .as_ref()
-                                        .map(|p| p.display().to_string())
-                                        .unwrap_or(tr("尚未选择保存位置")),
-                                )
-                                .flex_1()
-                                .min_w_0()
-                                .overflow_hidden(),
-                            )
-                            .child(
-                                Button::new("edit-profile")
-                                    .ghost()
-                                    .small()
-                                    .icon(IconName::Settings)
-                                    .label(tr("编辑下载配置"))
-                                    .disabled(self.busy)
-                                    .on_click(cx.listener(|this, _, _, cx| {
-                                        this.page = Page::Profiles;
-                                        cx.notify();
-                                    })),
-                            ),
-                    ),
-            );
-        if let Some(info) = &self.media {
-            body = body
-                .child(
-                    div()
-                        .p_4()
-                        .rounded_lg()
-                        .bg(cx.theme().muted)
-                        .v_flex()
-                        .gap_2()
-                        .child(div().font_semibold().child(info.title.clone()))
-                        .child(muted(cx, info.channel.clone().unwrap_or_default())),
-                )
-                .child(
-                    Button::new("review")
-                        .primary()
-                        .label(tr("下一步：查看命令"))
-                        .disabled(self.busy)
-                        .on_click(cx.listener(|this, _, _, cx| this.download(cx))),
-                );
         }
         body
     }

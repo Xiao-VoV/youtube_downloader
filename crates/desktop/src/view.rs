@@ -5,6 +5,7 @@ use gpui_kit::{
     *,
 };
 mod design;
+mod drafts;
 mod fields;
 mod help;
 mod history;
@@ -54,7 +55,8 @@ impl Render for Downloader {
                             .child(match self.page {
                                 Page::Tasks => self.tasks(cx),
                                 Page::History => self.history_view(cx),
-                                Page::New => self.new_download(cx),
+                                Page::New => self.draft_home(cx),
+                                Page::Detail => self.draft_detail(cx),
                                 Page::Profiles => self.profile_editor(cx),
                                 Page::Confirm => self.confirmation(cx),
                                 Page::Settings => self.software_settings(cx),
@@ -170,8 +172,14 @@ impl Downloader {
                         (page == Page::Tasks && !self.running.is_empty())
                             .then(|| div().text_xs().child(self.running.len().to_string())),
                     )
-                    .on_click(cx.listener(move |this, _, _, cx| {
+                    .on_click(cx.listener(move |this, _, window, cx| {
+                        if page == Page::New {
+                            this.refresh_preset_select(window, cx);
+                        }
                         if !this.busy || matches!(page, Page::Tasks | Page::History) {
+                            if this.page == Page::Detail || this.page == Page::Confirm {
+                                this.save_draft_editor(cx);
+                            }
                             this.page = page;
                             cx.notify();
                         }
@@ -223,7 +231,7 @@ impl Downloader {
                     })),
             );
         }
-        let mut panel = div().v_flex().gap_4().max_w(px(680.)).child(choices);
+        let panel = div().v_flex().gap_4().max_w(px(680.)).child(choices);
         let mut languages = div()
             .h_flex()
             .gap_2()
@@ -256,8 +264,17 @@ impl Downloader {
                     })),
             );
         }
-        panel = panel.child(languages);
-        panel.child(self.tool_controls(cx))
+        div()
+            .v_flex()
+            .gap_4()
+            .max_w(px(900.))
+            .mx_auto()
+            .child(
+                design::section(cx, crate::i18n::tr("界面偏好"))
+                    .child(panel)
+                    .child(languages),
+            )
+            .child(self.tool_controls(cx))
     }
     fn toolbar(&self, cx: &Context<Self>) -> Div {
         let title = match self.page {
@@ -266,6 +283,7 @@ impl Downloader {
             Page::New => "新建下载",
             Page::Profiles => "下载配置",
             Page::Confirm => "确认下载",
+            Page::Detail => "下载配置",
             Page::Settings => "软件设置",
         };
         div()
@@ -312,7 +330,8 @@ impl Downloader {
                             .icon(IconName::Plus)
                             .label(crate::i18n::tr("新建任务"))
                             .disabled(self.busy)
-                            .on_click(cx.listener(|this, _, _, cx| {
+                            .on_click(cx.listener(|this, _, window, cx| {
+                                this.refresh_preset_select(window, cx);
                                 this.page = Page::New;
                                 cx.notify();
                             })),

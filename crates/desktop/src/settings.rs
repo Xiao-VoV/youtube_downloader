@@ -18,6 +18,7 @@ pub(crate) enum Page {
     Profiles,
     Settings,
     Confirm,
+    Detail,
 }
 
 pub(crate) struct Settings {

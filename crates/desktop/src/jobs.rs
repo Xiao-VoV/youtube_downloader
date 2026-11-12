@@ -20,8 +20,13 @@ impl Downloader {
         cx: &mut Context<Self>,
     ) {
         let id = request.task_id.clone();
-        let title = self
-            .media
+        let media = self
+            .drafts
+            .entries
+            .iter()
+            .find(|d| d.id == request.task_id)
+            .and_then(|d| d.media.clone());
+        let title = media
             .as_ref()
             .map(|m| m.title.clone())
             .unwrap_or_else(|| request.url.clone());
@@ -34,22 +39,16 @@ impl Downloader {
             status: crate::history::HistoryStatus::Running,
             artifacts: vec![],
             metadata: crate::history::HistoryMetadata {
-                source_site: self
-                    .media
+                source_site: media
                     .as_ref()
                     .and_then(|m| m.extractor.clone())
                     .unwrap_or("youtube".into()),
-                media_id: self
-                    .media
-                    .as_ref()
-                    .map(|m| m.id.clone())
-                    .unwrap_or_default(),
-                channel: self
-                    .media
+                media_id: media.as_ref().map(|m| m.id.clone()).unwrap_or_default(),
+                channel: media
                     .as_ref()
                     .and_then(|m| m.channel.clone().or(m.uploader.clone())),
-                duration: self.media.as_ref().and_then(|m| m.duration),
-                original_url: self.url.read(cx).value().to_string(),
+                duration: media.as_ref().and_then(|m| m.duration),
+                original_url: request.url.clone(),
                 requested_height: (!profile.best_resolution).then_some(profile.max_height),
                 best_resolution: profile.best_resolution,
                 requested_format: format!("{:?}/{:?}", request.mode, profile.container),

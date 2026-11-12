@@ -123,7 +123,7 @@ impl Downloader {
                     .child(
                         Button::new("update-preset").small()
                             .label(tr("保存修改"))
-                            .disabled(self.settings.store.active_preset_id.is_none())
+                            .disabled(self.page==Page::Detail || self.settings.store.active_preset_id.is_none())
                             .on_click(cx.listener(|this, _, _, cx| this.update_preset(cx))),
                     )
                     .child(
@@ -138,12 +138,13 @@ impl Downloader {
                                     tr("删除配置")
                                 },
                             )
-                            .disabled(self.settings.store.active_preset_id.is_none())
+                            .disabled(self.page==Page::Detail || self.settings.store.active_preset_id.is_none())
                             .on_click(cx.listener(|this, _, _, cx| this.delete_preset(cx))),
                     )
                     .child(Button::new("use").label(tr("应用并返回")).on_click(cx.listener(
                         |this, _, _, cx| {
                             this.media = None;
+                            if this.page==Page::Detail {this.save_draft_editor(cx);}
                             this.page = Page::New;
                             cx.notify();
                         },

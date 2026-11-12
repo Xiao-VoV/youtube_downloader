@@ -30,6 +30,13 @@ fn translate(source: &str, language: Language) -> &str {
         .unwrap_or(source)
 }
 const CATALOG: &[(&str, &str)] = &[
+    ("界面偏好", "Interface preferences"),
+    ("等待解析", "Waiting to analyze"),
+    ("正在解析", "Analyzing"),
+    ("待确认", "Ready for review"),
+    ("解析失败", "Analysis failed"),
+    ("等待下载", "Queued"),
+    ("恢复队列", "Resume queue"),
     ("画质与格式", "Quality and format"),
     ("认证与网络", "Authentication and network"),
     ("保存规则", "Output rules"),

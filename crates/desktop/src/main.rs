@@ -1,6 +1,8 @@
 //! Native application bootstrap.
 mod app;
 mod bridge;
+mod draft_actions;
+mod drafts;
 mod duplicates;
 mod history;
 mod history_table;

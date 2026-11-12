@@ -3,7 +3,7 @@ use crate::i18n::tr;
 use crate::{
     app::Downloader,
     history::HistoryStatus,
-    messages::{Update, error_text},
+    messages::Update,
 };
 use gpui_kit::*;
 use youtube_engine::*;
@@ -14,6 +14,8 @@ impl Downloader {
                 if this
                     .update(cx, |this, cx| {
                         this.apply_update(update);
+                        this.start_next_probe(cx);
+                        this.start_queued(cx);
                         cx.notify();
                     })
                     .is_err()
@@ -55,15 +57,16 @@ impl Downloader {
                     Err(error) => self.tools.status = error,
                 }
             }
-            Update::Preview(result) => {
-                self.busy = false;
-                self.cancel = None;
-                match result {
-                    Ok(info) => {
-                        self.status = tr("解析完成");
-                        self.media = Some(info);
-                    }
-                    Err(e) => self.status = error_text(&e),
+            Update::DraftPreview(id, result) => {
+                if self
+                    .probe_job
+                    .as_ref()
+                    .is_some_and(|(active, _)| active == &id)
+                {
+                    self.probe_job = None;
+                }
+                if let Err(error) = self.drafts.apply_probe(&id, result) {
+                    self.status = error;
                 }
             }
             Update::Event(event) => {
@@ -71,6 +74,7 @@ impl Downloader {
             }
             Update::Finished(id, result, inspection) => {
                 if let Some(task) = self.running.remove(&id) {
+                    let _ = self.drafts.remove(&id);
                     let mut record = finish_record(task.record.clone(), result);
                     if let Some(info) = inspection {
                         record.metadata.width = info.width;

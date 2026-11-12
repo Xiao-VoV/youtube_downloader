@@ -8,7 +8,7 @@ pub(crate) enum Update {
         bool,
         std::result::Result<crate::tool_settings::ToolOutcome, String>,
     ),
-    Preview(youtube_engine::Result<MediaInfo>),
+    DraftPreview(String, youtube_engine::Result<MediaInfo>),
     Event(EngineEvent),
     Finished(
         String,

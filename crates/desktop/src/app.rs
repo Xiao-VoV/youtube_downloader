@@ -15,6 +15,15 @@ pub(crate) struct Downloader {
     pub(crate) tools: crate::tool_settings::ToolSettings,
     pub(crate) settings: crate::settings::Settings,
     pub(crate) pending: Option<DownloadRequest>,
+    pub(crate) drafts: crate::drafts::DraftStore,
+    pub(crate) selected_draft: Option<String>,
+    pub(crate) probe_job: Option<(String, CancelToken)>,
+    pub(crate) preset_select: Entity<
+        gpui_kit::component::select::SelectState<
+            gpui_kit::component::select::SearchableVec<String>,
+        >,
+    >,
+    pub(crate) queued: std::collections::VecDeque<(DownloadRequest, DownloadProfile)>,
     pub(crate) duplicate_confirmed: bool,
     pub(crate) running: std::collections::BTreeMap<String, crate::jobs::ActiveDownload>,
     pub(crate) history: crate::history::History,
@@ -34,7 +43,6 @@ pub(crate) struct Downloader {
     pub(crate) health: String,
     pub(crate) busy: bool,
     pub(crate) cancel: Option<CancelToken>,
-    pub(crate) artifacts: Vec<Artifact>,
     pub(crate) engine: Engine,
     pub(crate) _subscriptions: Vec<Subscription>,
 }
@@ -96,6 +104,39 @@ impl Downloader {
                 crate::preferences::apply(this.appearance, window, cx);
             }
         });
+        use gpui_kit::component::select::{SearchableVec, SelectEvent, SelectState};
+        let names = settings
+            .store
+            .presets
+            .iter()
+            .map(|p| format!("{} · {}", p.name, p.id))
+            .collect::<Vec<_>>();
+        let preset_select = cx.new(|cx| {
+            SelectState::new(SearchableVec::new(names), None, window, cx).searchable(true)
+        });
+        let preset_sub = cx.subscribe_in(
+            &preset_select,
+            window,
+            |this, _, event: &SelectEvent<SearchableVec<String>>, window, cx| {
+                if let SelectEvent::Confirm(Some(name)) = event {
+                    if let Some(p) = this
+                        .settings
+                        .store
+                        .presets
+                        .iter()
+                        .find(|p| format!("{} · {}", p.name, p.id) == *name)
+                        .cloned()
+                    {
+                        this.settings.profile = p.profile.clone();
+                        this.mode = p.profile.mode;
+                        this.output = p.profile.output_dir.clone();
+                        this.settings.store.active_preset_id = Some(p.id);
+                    }
+                    cx.notify();
+                    let _ = window;
+                }
+            },
+        );
         let extra_sub = cx.subscribe(&settings.extra, |_, _, _: &InputEvent, cx| cx.notify());
         Self {
             page: crate::settings::Page::New,
@@ -103,6 +144,11 @@ impl Downloader {
             tools,
             settings,
             pending: None,
+            drafts: crate::drafts::DraftStore::load(),
+            selected_draft: None,
+            probe_job: None,
+            preset_select,
+            queued: Default::default(),
             duplicate_confirmed: false,
             running: Default::default(),
             history: crate::history::History::load(),
@@ -122,40 +168,9 @@ impl Downloader {
             health: tr("正在检查本地工具…"),
             busy: false,
             cancel: None,
-            artifacts: vec![],
             engine,
-            _subscriptions: vec![sub, extra_sub, appearance_sub],
+            _subscriptions: vec![sub, extra_sub, appearance_sub, preset_sub],
         }
-    }
-    pub(crate) fn probe(&mut self, cx: &mut Context<Self>) {
-        if self.busy {
-            return;
-        }
-        let url = self.url.read(cx).value().to_string();
-        let url = match normalize_url(&url) {
-            Ok(url) => url,
-            Err(error) => {
-                self.status = error_text(&error);
-                cx.notify();
-                return;
-            }
-        };
-        self.preview_url = url.clone();
-        self.media = None;
-        self.artifacts.clear();
-        let job = self
-            .engine
-            .spawn_probe_with_profile(url, self.settings.snapshot(cx));
-        self.cancel = Some(job.cancel.clone());
-        self.busy = true;
-        self.status = tr("正在解析视频信息…");
-        let (tx, rx) = async_channel::bounded(16);
-        std::thread::spawn(move || {
-            while job.events.recv().is_ok() {}
-            let _ = tx.send_blocking(Update::Preview(job.join()));
-        });
-        Self::listen(rx, cx);
-        cx.notify();
     }
     pub(crate) fn download(&mut self, cx: &mut Context<Self>) {
         if self.busy || self.media.is_none() {
@@ -166,14 +181,16 @@ impl Downloader {
             cx.notify();
             return;
         };
-        let id = format!(
-            "{}-{}",
-            std::process::id(),
-            SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_nanos()
-        );
+        let id = self.selected_draft.clone().unwrap_or_else(|| {
+            format!(
+                "{}-{}",
+                std::process::id(),
+                SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_nanos()
+            )
+        });
         let request = DownloadRequest {
             url: self.preview_url.clone(),
             mode: self.mode,
@@ -221,13 +238,14 @@ impl Downloader {
             return;
         }
         let request = self.pending.take().expect("validated pending request");
-        if self.running.len() >= 3 {
-            self.pending = Some(request);
-            self.status = tr("已有 3 个活动下载，请等待任务结束后确认。");
-            cx.notify();
-            return;
+        if let Some(id) = self.selected_draft.take() {
+            if let Some(mut draft) = self.drafts.entries.iter().find(|d| d.id == id).cloned() {
+                draft.state = crate::drafts::DraftState::Queued;
+                let _ = self.drafts.upsert(draft);
+            }
         }
-        self.launch_download(request, profile, cx);
+        self.queued.push_back((request, profile));
+        self.start_queued(cx);
         self.page = crate::settings::Page::Tasks;
         self.status = tr("任务已启动，可继续新建下载或编辑配置。");
         cx.notify();
