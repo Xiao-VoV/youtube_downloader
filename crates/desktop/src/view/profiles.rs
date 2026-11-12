@@ -11,6 +11,7 @@ use gpui_kit::{
     *,
 };
 use youtube_engine::*;
+use gpui_kit::prelude::FluentBuilder;
 impl Downloader {
     pub(super) fn preset_switcher(&self, cx: &Context<Self>) -> Div {
         let mut row = div().h_flex().gap_2().flex_wrap();
@@ -93,7 +94,8 @@ impl Downloader {
         row
     }
     pub(super) fn profile_editor(&self, cx: &Context<Self>) -> Div {
-        div().v_flex().gap_4().max_w(px(960.)).mx_auto()
+        div().v_flex().gap_4().w_full()
+            .when(self.page!=Page::TaskOptions,|panel|panel.max_w(px(960.)).mx_auto())
             .children((self.page!=Page::TaskOptions && !self.settings.store.presets.is_empty()).then(||div().pb_2().child(self.preset_switcher(cx))))
             .child(super::fields::panel(tr("画质与格式"),IconName::Settings,cx)
                 .child(super::fields::row(div().text_sm().child(tr("配置名称")),Input::new(&self.settings.name).small(),cx))
