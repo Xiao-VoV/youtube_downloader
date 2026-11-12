@@ -35,11 +35,9 @@ pub struct DraftStore {
 }
 impl DraftStore {
     pub fn load() -> Self {
-        match std::env::var_os("HOME").filter(|v| !v.is_empty()) {
-            Some(home) => Self::load_at(
-                PathBuf::from(home).join("Library/Application Support/Shiguang/drafts.json"),
-            ),
-            None => Self {
+        match youtube_engine::app_data_dir() {
+            Ok(root) => Self::load_at(root.join("drafts.json")),
+            Err(_) => Self {
                 entries: Vec::new(),
                 error: Some("Draft directory unavailable".into()),
                 path: None,

@@ -90,8 +90,9 @@ impl Settings {
     }
 }
 fn path() -> Option<PathBuf> {
-    std::env::var_os("HOME")
-        .map(|home| PathBuf::from(home).join("Library/Application Support/Shiguang/profiles.json"))
+    youtube_engine::app_data_dir()
+        .ok()
+        .map(|root| root.join("profiles.json"))
 }
 fn load() -> Option<ProfileStore> {
     load_at(&path()?)

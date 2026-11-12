@@ -237,8 +237,10 @@ fn video_selector(request: &DownloadRequest, profile: &DownloadProfile) -> Resul
         format!("[height<={}]", profile.max_height)
     };
     Ok(match profile.container {
-        VideoContainer::Mp4=>format!("bv[ext=mp4]{height}[vcodec^=avc1]+ba[ext=m4a][acodec^=mp4a]/b[ext=mp4]{height}[vcodec^=avc1][acodec^=mp4a]"),
-        VideoContainer::Mkv=>format!("bv{height}+ba/b{height}"),
+        VideoContainer::Mp4 => format!(
+            "bv[ext=mp4]{height}[vcodec^=avc1]+ba[ext=m4a][acodec^=mp4a]/b[ext=mp4]{height}[vcodec^=avc1][acodec^=mp4a]"
+        ),
+        VideoContainer::Mkv => format!("bv{height}+ba/b{height}"),
     })
 }
 /// Do not let a profile select keyring/container grammar. Spaces inside paths
@@ -260,7 +262,9 @@ fn cookie_argument(profile: &DownloadProfile) -> Result<Option<String>> {
             .chars()
             .any(|c| c.is_control() || matches!(c, ':' | '+' | '#'))
     {
-        return Err(invalid("browser profile must be a plain nonempty name or path without cookie syntax delimiters"));
+        return Err(invalid(
+            "browser profile must be a plain nonempty name or path without cookie syntax delimiters",
+        ));
     }
     Ok(Some(format!("{}:{name}", browser.argument())))
 }

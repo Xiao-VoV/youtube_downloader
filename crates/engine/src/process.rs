@@ -1,6 +1,6 @@
 //! Unix process-group lifecycle with bounded concurrent pipe consumption.
 pub(crate) use crate::pipes::Output;
-use crate::pipes::{start_readers, PipeState};
+use crate::pipes::{PipeState, start_readers};
 use crate::{CancelToken, EngineConfig, EngineError, ErrorKind, Result};
 use std::{
     process::{Child, Command, ExitStatus, Stdio},

@@ -19,7 +19,7 @@ impl ToolManager {
         for item in fs::read_dir(directory).map_err(|_| failure("version directory unavailable"))? {
             let item = item.map_err(|_| failure("cannot inspect version"))?;
             count += 1;
-            if item.file_name() != ASSET
+            if item.file_name() != asset()
                 || !item
                     .file_type()
                     .map_err(|_| failure("cannot inspect version file"))?

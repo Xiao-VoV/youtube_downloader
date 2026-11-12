@@ -3,9 +3,9 @@ use std::{
     fmt,
     path::PathBuf,
     sync::{
+        Arc,
         atomic::{AtomicBool, Ordering},
         mpsc::{Receiver, SyncSender},
-        Arc,
     },
     thread::JoinHandle,
     time::Duration,

@@ -161,8 +161,16 @@ fn trash_artifacts(record: &HistoryEntry) -> Result<(), String> {
                 std::thread::sleep(std::time::Duration::from_millis(50));
             }
         }
-        #[cfg(not(target_os = "macos"))]
-        return Err("Trash is currently supported on macOS only".into());
+        #[cfg(target_os = "windows")]
+        {
+            return Err(
+                "Windows Recycle Bin integration is not yet implemented; history retained".into(),
+            );
+        }
+        #[cfg(all(unix, not(target_os = "macos")))]
+        {
+            return Err("Linux trash integration is not yet implemented; history retained".into());
+        }
     }
     Ok(())
 }

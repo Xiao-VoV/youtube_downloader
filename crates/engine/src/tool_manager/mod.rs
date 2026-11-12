@@ -4,7 +4,7 @@
 mod tests;
 mod transport;
 mod versions;
-use crate::{resolve_tool, ToolPaths};
+use crate::{ToolPaths, resolve_tool};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{
@@ -22,7 +22,9 @@ fn failure(message: &str) -> String {
 static TEMP: AtomicU64 = AtomicU64::new(0);
 const RELEASE_API: &str = "https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest";
 const RELEASE_ROOT: &str = "https://github.com/yt-dlp/yt-dlp/releases/download";
-const ASSET: &str = "yt-dlp_macos";
+fn asset() -> &'static str {
+    crate::platform::yt_dlp_asset()
+}
 #[derive(Clone, Debug, Default)]
 pub struct CustomToolPaths {
     pub yt_dlp: Option<PathBuf>,
@@ -61,10 +63,9 @@ impl ToolManager {
         Self { root }
     }
     pub fn default_root() -> ManagerResult<PathBuf> {
-        let home = std::env::var_os("HOME")
-            .filter(|s| !s.is_empty())
-            .ok_or_else(|| failure("HOME unavailable"))?;
-        Ok(PathBuf::from(home).join("Library/Application Support/Shiguang/tools"))
+        crate::platform::app_data_dir()
+            .map(|path| path.join("tools"))
+            .map_err(|error| failure(&error))
     }
     pub fn resolve(&self, custom: &CustomToolPaths) -> ManagerResult<ResolvedTools> {
         let (yt_dlp, yt_dlp_source) = if let Some(path) = &custom.yt_dlp {
@@ -146,7 +147,7 @@ impl ToolManager {
         release_info(version)
     }
     fn binary(&self, version: &str) -> PathBuf {
-        self.root.join("versions").join(version).join(ASSET)
+        self.root.join("versions").join(version).join(asset())
     }
     /// Reject managed-root aliases and every existing descendant symlink.
     /// Ancestors outside this root are caller-owned; this is not an OS sandbox
@@ -177,13 +178,13 @@ impl ToolManager {
         for current in paths {
             match fs::symlink_metadata(&current) {
                 Ok(meta) if meta.file_type().is_symlink() => {
-                    return Err(failure("managed symlink rejected"))
+                    return Err(failure("managed symlink rejected"));
                 }
                 Ok(meta) if current != path && !meta.is_dir() => {
-                    return Err(failure("managed parent is not a directory"))
+                    return Err(failure("managed parent is not a directory"));
                 }
                 Ok(meta) if current == self.root && !meta.is_dir() => {
-                    return Err(failure("managed root is not a directory"))
+                    return Err(failure("managed root is not a directory"));
                 }
                 Ok(_) => {}
                 Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
@@ -280,7 +281,7 @@ fn release_info(version: &str) -> ManagerResult<ReleaseInfo> {
     valid_version(version)?;
     Ok(ReleaseInfo {
         version: version.into(),
-        asset_url: format!("{RELEASE_ROOT}/{version}/{ASSET}"),
+        asset_url: format!("{RELEASE_ROOT}/{version}/{}", asset()),
         checksum_url: format!("{RELEASE_ROOT}/{version}/SHA2-256SUMS"),
     })
 }
@@ -289,7 +290,7 @@ fn checksum(bytes: &[u8]) -> ManagerResult<String> {
     let mut result = None;
     for line in text.lines() {
         let fields = line.split_whitespace().collect::<Vec<_>>();
-        if fields.len() == 2 && fields[1].trim_start_matches('*') == ASSET {
+        if fields.len() == 2 && fields[1].trim_start_matches('*') == asset() {
             if result.is_some()
                 || fields[0].len() != 64
                 || !fields[0].bytes().all(|b| b.is_ascii_hexdigit())
@@ -299,7 +300,7 @@ fn checksum(bytes: &[u8]) -> ManagerResult<String> {
             result = Some(fields[0].to_ascii_lowercase());
         }
     }
-    result.ok_or_else(|| failure("macOS checksum missing"))
+    result.ok_or_else(|| failure("selected platform checksum missing"))
 }
 fn atomic_file(path: &Path, bytes: &[u8], executable: bool) -> ManagerResult<()> {
     let parent = path

@@ -100,11 +100,9 @@ pub struct History {
 }
 impl History {
     pub fn load() -> Self {
-        match std::env::var_os("HOME").filter(|s| !s.is_empty()) {
-            Some(home) => Self::load_at(
-                PathBuf::from(home).join("Library/Application Support/Shiguang/history.sqlite3"),
-            ),
-            None => Self {
+        match youtube_engine::app_data_dir() {
+            Ok(root) => Self::load_at(root.join("history.sqlite3")),
+            Err(_) => Self {
                 entries: Vec::new(),
                 error: Some("History unavailable: HOME is unset".into()),
                 path: None,

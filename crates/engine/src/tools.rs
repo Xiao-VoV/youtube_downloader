@@ -86,8 +86,25 @@ pub fn resolve_tool(path: &Path) -> Result<PathBuf> {
     let candidates = if path.components().count() > 1 || path.is_absolute() {
         vec![path.to_owned()]
     } else {
+        #[allow(unused_mut)]
+        let mut names = vec![path.to_owned()];
+        #[cfg(target_os = "windows")]
+        {
+            let has_extension = path.extension().is_some();
+            if !has_extension {
+                let pathext = std::env::var_os("PATHEXT")
+                    .unwrap_or_else(|| OsString::from(".COM;.EXE;.BAT;.CMD"));
+                for ext in pathext
+                    .to_string_lossy()
+                    .split(';')
+                    .filter(|e| !e.is_empty())
+                {
+                    names.push(PathBuf::from(format!("{}{}", path.display(), ext)));
+                }
+            }
+        }
         std::env::split_paths(&std::env::var_os("PATH").unwrap_or_else(OsString::new))
-            .map(|p| p.join(path))
+            .flat_map(|dir| names.iter().map(move |name| dir.join(name)))
             .collect()
     };
     for candidate in candidates {

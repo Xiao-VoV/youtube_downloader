@@ -1,4 +1,4 @@
-//! Resolve selected history locations before requesting Finder. Never invoke a shell.
+//! Resolve selected history locations before requesting the platform file manager. Never invoke a shell.
 use crate::history::HistoryEntry;
 use std::{collections::BTreeSet, path::PathBuf};
 pub(crate) struct Locations {
@@ -57,9 +57,44 @@ pub(crate) fn reveal(paths: &[PathBuf]) -> Result<(), String> {
         }
         Ok(())
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "windows")]
     {
-        Err("Finder is available on macOS only".into())
+        if paths.len() != 1 {
+            return Err("Windows Explorer supports revealing one location at a time".into());
+        }
+        let path = &paths[0];
+        let status = std::process::Command::new("explorer.exe")
+            .arg(format!("/select,{}", path.display()))
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .map_err(|_| "Cannot launch Windows Explorer")?;
+        if status.success() {
+            Ok(())
+        } else {
+            Err("Windows Explorer could not reveal the location".into())
+        }
+    }
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        let directory = paths
+            .iter()
+            .find(|p| p.is_dir())
+            .or_else(|| paths[0].parent())
+            .ok_or("No containing directory is available")?;
+        let status = std::process::Command::new("xdg-open")
+            .arg(directory)
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .map_err(|_| "Cannot launch the system file manager")?;
+        if status.success() {
+            Ok(())
+        } else {
+            Err("System file manager could not open the location".into())
+        }
     }
 }
 #[cfg(test)]

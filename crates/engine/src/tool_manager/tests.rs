@@ -12,9 +12,11 @@ fn install_only_activate_list_and_safe_remove() {
     let second = manager.install_only_with(&two, &fake()).unwrap();
     assert_eq!(manager.marker().unwrap().unwrap().active, one.version);
     assert!(manager.remove_version(&one.version, &[]).is_err());
-    assert!(manager
-        .remove_version(&two.version, &[second.clone()])
-        .is_err());
+    assert!(
+        manager
+            .remove_version(&two.version, &[second.clone()])
+            .is_err()
+    );
     manager.activate(&two.version).unwrap();
     assert_eq!(
         manager.marker().unwrap().unwrap().previous,
@@ -97,12 +99,13 @@ impl Fixture {
 }
 impl Drop for Fixture {
     fn drop(&mut self) {
-        assert!(self
-            .0
-            .file_name()
-            .unwrap()
-            .to_string_lossy()
-            .starts_with("shiguang-tools-test-"));
+        assert!(
+            self.0
+                .file_name()
+                .unwrap()
+                .to_string_lossy()
+                .starts_with("shiguang-tools-test-")
+        );
         let _ = fs::remove_dir_all(&self.0);
     }
 }
@@ -115,9 +118,11 @@ fn managed_root_version_binary_and_dangling_marker_symlinks_are_rejected() {
     fs::create_dir(&target).unwrap();
     let alias = f.0.join("alias");
     symlink(&target, &alias).unwrap();
-    assert!(ToolManager::new(alias)
-        .install_with(&release_info("2026.01.01").unwrap(), &fake())
-        .is_err());
+    assert!(
+        ToolManager::new(alias)
+            .install_with(&release_info("2026.01.01").unwrap(), &fake())
+            .is_err()
+    );
     let root = f.0.join("managed");
     fs::create_dir(&root).unwrap();
     let manager = ToolManager::new(root.clone());
@@ -125,9 +130,11 @@ fn managed_root_version_binary_and_dangling_marker_symlinks_are_rejected() {
     assert!(manager.marker().is_err());
     fs::remove_file(root.join("active.json")).unwrap();
     symlink(&target, root.join("versions")).unwrap();
-    assert!(manager
-        .install_with(&release_info("2026.01.01").unwrap(), &fake())
-        .is_err());
+    assert!(
+        manager
+            .install_with(&release_info("2026.01.01").unwrap(), &fake())
+            .is_err()
+    );
     fs::remove_file(root.join("versions")).unwrap();
     manager
         .install_with(&release_info("2026.01.01").unwrap(), &fake())
@@ -137,9 +144,11 @@ fn managed_root_version_binary_and_dangling_marker_symlinks_are_rejected() {
     symlink("/bin/sh", &binary).unwrap();
     assert!(manager.resolve(&CustomToolPaths::default()).is_err());
     assert!(ToolManager::new(PathBuf::from("/")).marker().is_err());
-    assert!(ToolManager::new(PathBuf::from("relative"))
-        .marker()
-        .is_err());
+    assert!(
+        ToolManager::new(PathBuf::from("relative"))
+            .marker()
+            .is_err()
+    );
 }
 
 fn fake() -> Fake {
@@ -190,10 +199,12 @@ fn repeated_active_or_retained_version_never_overwrites_binary() {
     let marker = fs::read(f.0.join("active.json")).unwrap();
     // Retained versions are immutable. Reuse is intentionally via revert,
     // never install-overwrite, even if a new remote payload has another hash.
-    assert!(manager
-        .install_with(&first, &fake())
-        .unwrap_err()
-        .contains("version directory exists"));
+    assert!(
+        manager
+            .install_with(&first, &fake())
+            .unwrap_err()
+            .contains("version directory exists")
+    );
     assert_eq!(fs::read(&binary).unwrap(), bytes);
     assert_eq!(fs::read(f.0.join("active.json")).unwrap(), marker);
 }
@@ -216,9 +227,11 @@ fn failures_never_change_active_marker() {
             ..fake()
         },
     ] {
-        assert!(manager
-            .install_with(&release_info("2026.02.01").unwrap(), &transport)
-            .is_err());
+        assert!(
+            manager
+                .install_with(&release_info("2026.02.01").unwrap(), &transport)
+                .is_err()
+        );
         assert_eq!(fs::read(f.0.join("active.json")).unwrap(), marker);
     }
     let mut malicious = release_info("2026.02.01").unwrap();
@@ -232,15 +245,17 @@ fn versions_checksums_and_transport_hosts_fail_closed() {
         assert!(release_info(version).is_err());
     }
     assert!(checksum(b"none").is_err());
-    assert!(checksum(
-        format!(
-            "{} yt-dlp_macos\n{} yt-dlp_macos\n",
-            "a".repeat(64),
-            "b".repeat(64)
+    assert!(
+        checksum(
+            format!(
+                "{} yt-dlp_macos\n{} yt-dlp_macos\n",
+                "a".repeat(64),
+                "b".repeat(64)
+            )
+            .as_bytes()
         )
-        .as_bytes()
-    )
-    .is_err());
+        .is_err()
+    );
     for url in [
         "http://github.com/a",
         "https://evil.test/a",

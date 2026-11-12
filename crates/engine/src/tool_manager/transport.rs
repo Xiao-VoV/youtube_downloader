@@ -1,5 +1,5 @@
 //! Fixed-origin HTTPS transport. Checksums establish integrity, not signatures.
-use super::{failure, ManagerResult};
+use super::{ManagerResult, failure};
 use std::{io::Read, time::Duration};
 pub(super) trait Transport {
     fn get(&self, url: &str, limit: usize) -> ManagerResult<Vec<u8>>;

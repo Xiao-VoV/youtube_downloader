@@ -12,8 +12,9 @@ pub(crate) enum Appearance {
     Dark,
 }
 pub(crate) fn path() -> Option<PathBuf> {
-    std::env::var_os("HOME")
-        .map(|h| PathBuf::from(h).join("Library/Application Support/Shiguang/software.json"))
+    youtube_engine::app_data_dir()
+        .ok()
+        .map(|root| root.join("software.json"))
 }
 pub(crate) fn load() -> Appearance {
     path()

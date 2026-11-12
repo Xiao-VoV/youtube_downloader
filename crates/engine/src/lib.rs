@@ -5,6 +5,7 @@ mod engine;
 mod inspection;
 mod pipes;
 mod plan;
+mod platform;
 mod profile;
 mod templates;
 pub use inspection::MediaInspection;
@@ -22,8 +23,9 @@ mod types;
 mod urls;
 
 pub use engine::*;
+pub use platform::app_data_dir;
 pub use protocol::{
-    parse_progress, ARTIFACT_PREFIX, DEFAULT_VIDEO_SELECTOR, POSTPROCESS_PREFIX, PROGRESS_PREFIX,
+    ARTIFACT_PREFIX, DEFAULT_VIDEO_SELECTOR, POSTPROCESS_PREFIX, PROGRESS_PREFIX, parse_progress,
 };
 pub use tools::resolve_tool;
 pub use types::*;
