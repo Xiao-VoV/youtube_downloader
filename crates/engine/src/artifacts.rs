@@ -17,7 +17,7 @@ pub(crate) fn prepare_attempt(request: &DownloadRequest) -> Result<Attempt> {
     let temp = root.join(".shiguang-tmp");
     if temp.exists() {
         let meta = fs::symlink_metadata(&temp).map_err(|_| unsafe_path())?;
-        if !meta.is_dir() || meta.file_type().is_symlink() {
+        if !meta.is_dir() || meta.file_type().is_symlink() || is_reparse_point(&temp) {
             return Err(unsafe_path());
         }
     } else {
@@ -53,6 +53,19 @@ fn private_dir(path: &Path) -> Result<()> {
         )
     })
 }
+#[cfg(windows)]
+fn is_reparse_point(path: &Path) -> bool {
+    use std::os::windows::fs::MetadataExt;
+    const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x400;
+    fs::symlink_metadata(path)
+        .map(|m| m.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0)
+        .unwrap_or(true)
+}
+#[cfg(not(windows))]
+fn is_reparse_point(_path: &Path) -> bool {
+    false
+}
+
 fn unsafe_path() -> EngineError {
     EngineError::new(
         ErrorKind::UnsafeArtifact,
@@ -76,7 +89,7 @@ fn snapshot(root: &Path, path: &Path, seen: &mut HashSet<PathBuf>, depth: usize)
         }
         let meta = fs::symlink_metadata(&path).map_err(|_| unsafe_path())?;
         // Reject symlink subdirectories before launching; do not traverse them.
-        if meta.file_type().is_symlink() {
+        if meta.file_type().is_symlink() || is_reparse_point(&path) {
             return Err(unsafe_path());
         }
         seen.insert(path.clone());

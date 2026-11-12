@@ -111,6 +111,19 @@ impl Downloader {
         Self::listen(rx, cx);
     }
 }
+#[cfg(target_os = "windows")]
+fn is_reparse_point(path: &std::path::Path) -> bool {
+    use std::os::windows::fs::MetadataExt;
+    const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x400;
+    std::fs::symlink_metadata(path)
+        .map(|m| m.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0)
+        .unwrap_or(true)
+}
+#[cfg(not(target_os = "windows"))]
+fn is_reparse_point(_path: &std::path::Path) -> bool {
+    false
+}
+
 fn trash_artifacts(record: &HistoryEntry) -> Result<(), String> {
     for artifact in &record.artifacts {
         let path = &artifact.path;
@@ -122,7 +135,7 @@ fn trash_artifacts(record: &HistoryEntry) -> Result<(), String> {
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => continue,
             Err(_) => return Err("Cannot inspect media file".into()),
         };
-        if !metadata.is_file() || metadata.file_type().is_symlink() {
+        if !metadata.is_file() || metadata.file_type().is_symlink() || is_reparse_point(path) {
             return Err("Only regular media files may be trashed".into());
         }
         #[cfg(target_os = "macos")]
