@@ -1,10 +1,6 @@
 //! Route by task identity; a completed download never mutates a different draft.
 use crate::i18n::tr;
-use crate::{
-    app::Downloader,
-    history::HistoryStatus,
-    messages::Update,
-};
+use crate::{app::Downloader, history::HistoryStatus, messages::Update};
 use gpui_kit::*;
 use youtube_engine::*;
 impl Downloader {
@@ -65,8 +61,23 @@ impl Downloader {
                 {
                     self.probe_job = None;
                 }
-                if let Err(error) = self.drafts.apply_probe(&id, result) {
-                    self.status = error;
+                if self
+                    .drafts
+                    .entries
+                    .iter()
+                    .any(|d| d.id == id && d.state == crate::drafts::DraftState::Probing)
+                {
+                    if let Err(error) = self.drafts.apply_probe(&id, result) {
+                        self.status = error;
+                    }
+                    if self.selected_draft.as_deref() == Some(id.as_str()) {
+                        self.media = self
+                            .drafts
+                            .entries
+                            .iter()
+                            .find(|d| d.id == id)
+                            .and_then(|d| d.media.clone());
+                    }
                 }
             }
             Update::Event(event) => {

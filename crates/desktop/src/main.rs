@@ -44,7 +44,11 @@ fn main() {
                     let weak = view.downgrade();
                     window.on_window_should_close(cx, move |_, cx| {
                         weak.update(cx, |this, cx| {
-                            if this.busy || !this.running.is_empty() {
+                            if this.busy || this.probe_job.is_some() || !this.running.is_empty() {
+                                this.shutting_down = true;
+                                if let Some((_, cancel)) = &this.probe_job {
+                                    cancel.cancel();
+                                }
                                 for task in this.running.values() {
                                     task.cancel.cancel();
                                 }

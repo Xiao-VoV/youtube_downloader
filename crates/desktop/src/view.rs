@@ -195,6 +195,9 @@ impl Downloader {
                     .icon(IconName::Settings)
                     .label(crate::i18n::tr("软件设置"))
                     .on_click(cx.listener(|this, _, _, cx| {
+                        if matches!(this.page, Page::Detail | Page::Confirm) {
+                            this.save_draft_editor(cx);
+                        }
                         this.page = Page::Settings;
                         cx.notify();
                     })),

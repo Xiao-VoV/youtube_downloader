@@ -24,6 +24,7 @@ pub(crate) struct Downloader {
         >,
     >,
     pub(crate) queued: std::collections::VecDeque<(DownloadRequest, DownloadProfile)>,
+    pub(crate) shutting_down: bool,
     pub(crate) duplicate_confirmed: bool,
     pub(crate) running: std::collections::BTreeMap<String, crate::jobs::ActiveDownload>,
     pub(crate) history: crate::history::History,
@@ -149,6 +150,7 @@ impl Downloader {
             probe_job: None,
             preset_select,
             queued: Default::default(),
+            shutting_down: false,
             duplicate_confirmed: false,
             running: Default::default(),
             history: crate::history::History::load(),
@@ -278,6 +280,9 @@ impl Downloader {
 }
 impl Drop for Downloader {
     fn drop(&mut self) {
+        if let Some((_, cancel)) = &self.probe_job {
+            cancel.cancel();
+        }
         if let Some(cancel) = &self.cancel {
             cancel.cancel();
         }

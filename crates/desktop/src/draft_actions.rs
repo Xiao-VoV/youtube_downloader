@@ -77,7 +77,7 @@ impl Downloader {
         cx.notify();
     }
     pub(crate) fn start_next_probe(&mut self, cx: &mut Context<Self>) {
-        if self.probe_job.is_some() {
+        if self.shutting_down || self.probe_job.is_some() {
             return;
         }
         let Some(mut draft) = self
@@ -118,6 +118,11 @@ impl Downloader {
         let stale = crate::drafts::requires_reprobe(&draft.profile, &profile);
         draft.profile = profile;
         if stale {
+            if let Some((active, cancel)) = &self.probe_job {
+                if active == &id {
+                    cancel.cancel();
+                }
+            }
             draft.media = None;
             draft.state = DraftState::Waiting;
             self.media = None;
@@ -134,6 +139,9 @@ impl Downloader {
         true
     }
     pub(crate) fn resume_queued(&mut self, id: &str, cx: &mut Context<Self>) {
+        if self.running.contains_key(id) || self.queued.iter().any(|(r, _)| r.task_id == id) {
+            return;
+        }
         if let Some(d) = self.drafts.entries.iter().find(|d| d.id == id).cloned() {
             if let Some(output_dir) = d.profile.output_dir.clone() {
                 self.queued.push_back((
@@ -153,6 +161,9 @@ impl Downloader {
         }
     }
     pub(crate) fn start_queued(&mut self, cx: &mut Context<Self>) {
+        if self.shutting_down {
+            return;
+        }
         while self.running.len() < 3 {
             let Some((request, profile)) = self.queued.pop_front() else {
                 break;
