@@ -322,9 +322,15 @@ fn atomic_file(path: &Path, bytes: &[u8], executable: bool) -> ManagerResult<()>
     let mut file = options
         .open(&temporary)
         .map_err(|_| failure("cannot create stage"))?;
-    file.write_all(bytes)
-        .and_then(|_| file.sync_all())
-        .map_err(|_| failure("cannot write stage"))?;
-    fs::rename(&temporary, path).map_err(|_| failure("cannot activate stage"))?;
-    Ok(())
+    let result = (|| {
+        file.write_all(bytes)
+            .and_then(|_| file.sync_all())
+            .map_err(|_| failure("cannot write stage"))?;
+        fs::rename(&temporary, path).map_err(|_| failure("cannot activate stage"))?;
+        Ok(())
+    })();
+    if result.is_err() {
+        let _ = fs::remove_file(&temporary);
+    }
+    result
 }
