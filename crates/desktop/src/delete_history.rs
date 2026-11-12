@@ -163,9 +163,30 @@ fn trash_artifacts(record: &HistoryEntry) -> Result<(), String> {
         }
         #[cfg(target_os = "windows")]
         {
-            return Err(
-                "Windows Recycle Bin integration is not yet implemented; history retained".into(),
-            );
+            use std::os::windows::ffi::OsStrExt;
+            use windows_sys::Win32::{
+                Storage::FileSystem::{
+                    FILEOP_FLAGS, FO_DELETE, FOF_ALLOWUNDO, FOF_NOCONFIRMATION, FOF_SILENT,
+                },
+                UI::Shell::{SHFILEOPSTRUCTW, SHFileOperationW},
+            };
+            let mut source = path.as_os_str().encode_wide().collect::<Vec<_>>();
+            source.push(0);
+            source.push(0);
+            let operation = SHFILEOPSTRUCTW {
+                hwnd: 0,
+                wFunc: FO_DELETE,
+                pFrom: source.as_ptr(),
+                pTo: std::ptr::null(),
+                fFlags: (FOF_ALLOWUNDO | FOF_NOCONFIRMATION | FOF_SILENT) as FILEOP_FLAGS,
+                fAnyOperationsAborted: 0,
+                hNameMappings: std::ptr::null_mut(),
+                lpszProgressTitle: std::ptr::null(),
+            };
+            let result = unsafe { SHFileOperationW(&operation) };
+            if result != 0 || operation.fAnyOperationsAborted != 0 {
+                return Err("Recycle Bin request failed; history retained".into());
+            }
         }
         #[cfg(all(unix, not(target_os = "macos")))]
         {
