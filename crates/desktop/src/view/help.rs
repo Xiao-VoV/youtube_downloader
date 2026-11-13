@@ -10,13 +10,13 @@ pub(super) fn label(text: &'static str, tip: &'static str, section: &'static str
         .h_flex()
         .items_center()
         .gap_2()
-        .child(div().text_sm().child(tr(text)))
+        .child(div().text_xs().child(tr(text)))
         .child(
             Button::new(SharedString::from(format!("help-{text}")))
                 .small()
                 .ghost()
                 .xsmall()
-                .label("?")
+                .icon(IconName::Info)
                 .tooltip(tr(tip))
                 .on_click(move |_, _, cx| cx.open_url(&url)),
         )

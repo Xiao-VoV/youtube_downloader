@@ -25,7 +25,7 @@ fn main() {
         .with_assets(gpui_kit::assets::AllAssets)
         .run(|cx| {
             gpui_kit::init(cx);
-            let bounds = Bounds::centered(None, size(px(1040.), px(780.)), cx);
+            let bounds = Bounds::centered(None, size(px(1120.), px(780.)), cx);
             gpui_kit::open_window(
                 WindowOptions {
                     window_bounds: Some(WindowBounds::Windowed(bounds)),
