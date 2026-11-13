@@ -25,6 +25,7 @@ mkdir -p "$OUT/$APP_NAME.app/Contents/MacOS" "$OUT/$APP_NAME.app/Contents/Resour
 
 cargo build --release -p youtube-desktop
 cp target/release/youtube-desktop "$APP/Contents/MacOS/$APP_NAME"
+cp assets/YTDer.icns "$APP/Contents/Resources/YTDer.icns"
 chmod 755 "$APP/Contents/MacOS/$APP_NAME"
 
 cat > "$APP/Contents/Info.plist" <<PLIST
@@ -42,6 +43,8 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <string>com.xiaovov.ytder</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
+  <key>CFBundleIconFile</key>
+  <string>YTDer</string>
   <key>CFBundleShortVersionString</key>
   <string>$VERSION</string>
   <key>CFBundleVersion</key>

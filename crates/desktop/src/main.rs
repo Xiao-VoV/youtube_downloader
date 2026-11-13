@@ -22,6 +22,7 @@ use app::Downloader;
 use gpui_kit::*;
 fn main() {
     gpui_kit::application()
+        .with_quit_mode(gpui_kit::QuitMode::LastWindowClosed)
         .with_assets(gpui_kit::assets::AllAssets)
         .run(|cx| {
             gpui_kit::init(cx);

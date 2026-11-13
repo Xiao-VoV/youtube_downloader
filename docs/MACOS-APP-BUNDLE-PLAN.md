@@ -13,6 +13,7 @@ YTDer.app/
     ├── MacOS/
     │   └── YTDer
     ├── Resources/
+    │   ├── YTDer.icns
     │   ├── Assets.car 或应用图标资源
     │   └── README/版本信息（可选）
     └── _CodeSignature/（签名后生成）
