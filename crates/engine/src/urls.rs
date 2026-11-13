@@ -1,13 +1,12 @@
 use crate::{EngineError, ErrorKind, Result};
 use url::Url;
 
-/// Accept one YouTube video, drop tracking/list parameters, and canonicalize its
-/// identity. A watch URL containing a list is still a single-video request.
+/// Accept one public HTTP(S) media URL without shell or credential data.
 pub fn normalize_url(input: &str) -> Result<String> {
     let bad = || {
         EngineError::new(
             ErrorKind::InvalidUrl,
-            "expected a single HTTP(S) YouTube video URL",
+            "expected one public HTTP(S) media URL",
         )
     };
     if input.chars().any(|c| c.is_control()) {
@@ -21,37 +20,6 @@ pub fn normalize_url(input: &str) -> Result<String> {
     {
         return Err(bad());
     }
-    let host = u.host_str().ok_or_else(bad)?;
-    let segments: Vec<_> = u.path().split('/').filter(|s| !s.is_empty()).collect();
-    let id = match host {
-        "youtu.be" | "www.youtu.be" if segments.len() == 1 => Some(segments[0].to_owned()),
-        "youtube.com" | "www.youtube.com" | "m.youtube.com" | "music.youtube.com" => {
-            if u.path() == "/watch" {
-                let ids: Vec<_> = u
-                    .query_pairs()
-                    .filter(|(k, _)| k == "v")
-                    .map(|(_, v)| v.into_owned())
-                    .collect();
-                if ids.len() == 1 {
-                    Some(ids[0].clone())
-                } else {
-                    None
-                }
-            } else if segments.len() == 2 && matches!(segments[0], "shorts" | "embed" | "live") {
-                Some(segments[1].to_owned())
-            } else {
-                None
-            }
-        }
-        _ => None,
-    }
-    .ok_or_else(bad)?;
-    if id.len() != 11
-        || !id
-            .bytes()
-            .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
-    {
-        return Err(bad());
-    }
-    Ok(format!("https://www.youtube.com/watch?v={id}"))
+    let _host = u.host_str().ok_or_else(bad)?;
+    Ok(u.to_string())
 }
