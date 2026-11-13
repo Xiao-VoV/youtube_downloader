@@ -2,6 +2,7 @@
 use crate::{app::Downloader, settings::Page};
 use gpui_kit::{component::*, *};
 mod controls;
+mod cookie_help;
 mod design;
 mod drafts;
 mod fields;

@@ -116,6 +116,16 @@ impl Downloader {
                     cx,
                 ));
             if let Some(error) = &d.error {
+                if cfg!(target_os = "macos")
+                    && d.profile.cookies_browser.is_some()
+                    && super::cookie_help::database_access_failure(error)
+                {
+                    info = info.child(super::cookie_help::guidance(
+                        SharedString::from(format!("cookie-error-settings-{}", d.id)),
+                        true,
+                        cx,
+                    ));
+                }
                 let detail = error.clone();
                 info = info.child(
                     div()
@@ -247,6 +257,16 @@ impl Downloader {
                 info = info.child(muted(cx, draft_state(d.state)));
             }
             if let Some(error) = &d.error {
+                if cfg!(target_os = "macos")
+                    && d.profile.cookies_browser.is_some()
+                    && super::cookie_help::database_access_failure(error)
+                {
+                    info = info.child(super::cookie_help::guidance(
+                        SharedString::from(format!("cookie-error-settings-{}", d.id)),
+                        true,
+                        cx,
+                    ));
+                }
                 let detail = error.clone();
                 info = info.child(
                     div()

@@ -293,6 +293,13 @@ impl Downloader {
                 controls::input(&self.settings.browser_profile, cx),
                 cx,
             ));
+            if cfg!(target_os = "macos") {
+                section = section.child(super::cookie_help::guidance(
+                    "cookie-privacy-settings",
+                    false,
+                    cx,
+                ));
+            }
         }
         section
     }

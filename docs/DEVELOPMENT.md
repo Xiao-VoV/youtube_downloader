@@ -25,6 +25,16 @@ cargo build --locked -p youtube-engine --example health
 
 这会模拟 Finder 的最小 PATH，执行本机离线版本检查，不访问媒体站点。还需重新打包后从 Finder 打开应用，在工具设置中检查自动探测和健康检查；不应使用旧安装包判断源码修复是否生效。
 
+### macOS 签名与隐私权限
+
+打包脚本在全部应用资源写入后签名整个 bundle，并强制校验；仅复制 Cargo 可执行文件留下的 linker ad-hoc 签名不是有效的完整应用包签名。默认使用本机 ad-hoc 签名，不代表 Developer ID 签名或公证。
+
+正式分发可用 `SIGNING_IDENTITY='Developer ID Application: …' bash scripts/package-macos.sh` 选择本机已有证书；持续使用相同签名身份和 Bundle ID。ad-hoc 构建替换后可能需要重新授权，不能保证跨版本保留 TCC 权限，不应通过伪造宽松 designated requirement 绕过权限身份校验。
+
+启用浏览器 Cookie 后，配置界面显示 macOS 权限说明和“打开隐私设置”入口；解析失败且诊断包含数据库查找失败或 Cookie 访问被拒绝时，草稿列表及详情页显示针对性指引，仍保留原始错误和复制按钮。不将 HTTP 认证失败或 Cookie 解密失败误判为数据库权限问题，不读取 Cookie 内容或查询/重置 TCC 授权。设置页直达链接若未被当前系统支持，可按界面中的文字路径手动进入。
+
+读取 Chrome Cookies 遇到权限问题时，检查“系统设置 → 隐私与安全性 → 完全磁盘访问权限”中的已安装 YTDer，并在授权后完全退出再启动。“自动化”中的 YTDer → Google Chrome 开关控制 Apple Events，不是读取 Cookies 文件的授权。仅在同一安装包反复启动仍丢失授权时，继续检查实际启动路径、签名有效性与系统 TCC 诊断；不要自动重置用户的隐私授权。
+
 ## 下载配置
 
 - 工作流：任务列表 → 新建下载 → 选择已保存配置或编辑配置 → 解析链接 → 查看命令 → 确认下载。
