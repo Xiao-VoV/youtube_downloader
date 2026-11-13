@@ -1,6 +1,6 @@
 //! Unix process-group lifecycle with bounded concurrent pipe consumption.
 pub(crate) use crate::pipes::Output;
-use crate::pipes::{start_readers, PipeState};
+use crate::pipes::{PipeState, start_readers};
 use crate::{CancelToken, EngineConfig, EngineError, ErrorKind, Result};
 use std::{
     process::{Child, Command, ExitStatus, Stdio},
@@ -110,9 +110,12 @@ pub(crate) fn run(
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
-        let mut child = command
-            .spawn()
-            .map_err(|_| EngineError::new(ErrorKind::Spawn, "unable to start selected tool"))?;
+        let mut child = command.spawn().map_err(|error| {
+            EngineError::new(
+                ErrorKind::Spawn,
+                format!("unable to start selected tool {}: {error}", command.get_program().to_string_lossy()),
+            )
+        })?;
         let (rx, readers) = start_readers(&mut child);
         let mut life = Lifecycle::new();
         let mut pipes = PipeState::new(capture);
@@ -132,20 +135,17 @@ pub(crate) fn run(
             let _ = reader.join();
         }
         if let Some(error) = life.error {
-            return Err(error);
+            return Err(pipes.output.with_diagnostics(error));
         }
         if !capture && !pipes.pending.is_empty() {
             line(&pipes.pending)?;
         }
         let status = waited.map_err(|_| EngineError::new(ErrorKind::Io, "tool reap failed"))?;
         if !status.success() {
-            return Err(EngineError::new(
+            return Err(pipes.output.with_diagnostics(EngineError::new(
                 ErrorKind::ProcessFailed,
-                format!(
-                    "tool exited unsuccessfully ({:?}); diagnostics retained privately",
-                    status.code()
-                ),
-            ));
+                format!("tool exited unsuccessfully ({:?})", status.code()),
+            )));
         }
         Ok(pipes.output)
     }

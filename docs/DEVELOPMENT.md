@@ -14,7 +14,16 @@ cargo test --locked -p youtube-engine
 cargo run --locked -p youtube-desktop
 ```
 
-GPUI Kit 固定为 0.9.1。应用从启动进程的 `PATH` 中查找 yt-dlp、FFmpeg、ffprobe 和 Deno，不自动安装工具。yt-dlp 是解析/下载必需工具，FFmpeg 用于需要合并或转换的场景；Deno 存在不代表所有 JavaScript 挑战可解。ffprobe 当前用于发现和健康检查，不应将文件校验宣传为独立媒体完整性验证。
+GPUI Kit 固定为 0.9.1。应用优先从启动进程的 `PATH` 中查找 yt-dlp、FFmpeg、ffprobe 和 Deno；macOS 额外搜索 `/opt/homebrew/bin`、`/usr/local/bin`、`~/.local/bin` 和 `~/.deno/bin`，以支持 Finder 启动的最小环境。探测与工具子进程使用相同搜索路径，不执行登录 shell、不修改全局环境；其他安装位置请在工具设置中指定。不自动安装工具。yt-dlp 是解析/下载必需工具，FFmpeg 用于需要合并或转换的场景；Deno 存在不代表所有 JavaScript 挑战可解。ffprobe 当前用于发现和健康检查，不应将文件校验宣传为独立媒体完整性验证。
+
+### 安装版工具探测回归
+
+```sh
+cargo build --locked -p youtube-engine --example health
+/usr/bin/env PATH=/usr/bin:/bin:/usr/sbin:/sbin target/debug/examples/health
+```
+
+这会模拟 Finder 的最小 PATH，执行本机离线版本检查，不访问媒体站点。还需重新打包后从 Finder 打开应用，在工具设置中检查自动探测和健康检查；不应使用旧安装包判断源码修复是否生效。
 
 ## 下载配置
 
@@ -60,7 +69,8 @@ macOS 配置位于 `~/Library/Application Support/Shiguang/profiles.json`，仅�
 - 输出路径与普通文件检查不代表媒体可播放、内容正确或文件完整。
 - 外部工具运行于当前用户权限，不是 OS 沙箱；结构化 argv 不等于隔离恶意工具。
 - 取消/失败不承诺自动删除所有部分产物，不能称保证续传或无损暂停。
-- 浏览器 Profile、代理、目录和日志可能包含个人信息，提交 Issue 前需自行检查。
+- 解析失败会在草稿页显示诊断预览，支持复制当前会话完整错误（包含有界 stderr、退出码或启动失败原因）。原始诊断只保留在内存，草稿落盘仍仅保存通用失败摘要，重启后无法恢复完整日志。
+- 浏览器 Profile、代理、目录和日志可能包含个人信息，复制错误或提交 Issue 前需自行检查。
 - 运行数据应位于用户明确选择的仓库外目录。
 
 ## 正式开源前检查

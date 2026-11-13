@@ -4,7 +4,7 @@
 mod tests;
 mod transport;
 mod versions;
-use crate::{resolve_tool, ToolPaths};
+use crate::{ToolPaths, resolve_tool};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{
@@ -69,7 +69,7 @@ impl ToolManager {
     pub fn resolve(&self, custom: &CustomToolPaths) -> ManagerResult<ResolvedTools> {
         let (yt_dlp, yt_dlp_source) = if let Some(path) = &custom.yt_dlp {
             (
-                resolve_tool(path).map_err(|_| failure("invalid custom yt-dlp"))?,
+                resolve_tool(path).map_err(|e| failure(&format!("invalid custom yt-dlp: {e}")))?,
                 ToolSource::Custom,
             )
         } else if let Some(marker) = self.marker()? {
@@ -89,7 +89,7 @@ impl ToolManager {
             match custom {
                 Some(path) => resolve_tool(path)
                     .map(Some)
-                    .map_err(|_| failure("invalid custom media tool")),
+                    .map_err(|e| failure(&format!("invalid custom {name}: {e}"))),
                 None => Ok(resolve_tool(Path::new(name)).ok()),
             }
         };
@@ -177,13 +177,13 @@ impl ToolManager {
         for current in paths {
             match fs::symlink_metadata(&current) {
                 Ok(meta) if meta.file_type().is_symlink() => {
-                    return Err(failure("managed symlink rejected"))
+                    return Err(failure("managed symlink rejected"));
                 }
                 Ok(meta) if current != path && !meta.is_dir() => {
-                    return Err(failure("managed parent is not a directory"))
+                    return Err(failure("managed parent is not a directory"));
                 }
                 Ok(meta) if current == self.root && !meta.is_dir() => {
-                    return Err(failure("managed root is not a directory"))
+                    return Err(failure("managed root is not a directory"));
                 }
                 Ok(_) => {}
                 Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}

@@ -188,19 +188,23 @@ impl Downloader {
                     let engine = Engine::new(paths.clone(), EngineConfig::default());
                     let report = engine.health_check(&CancelToken::new());
                     if !report.yt_dlp.healthy {
-                        return Err(tr("yt-dlp健康检查失败；当前运行任务不受影响。"));
+                        return Err(format!(
+                            "{}\n{}",
+                            tr("yt-dlp健康检查失败；当前运行任务不受影响。"),
+                            health_failure(&report.yt_dlp)
+                        ));
                     }
                     if custom.ffmpeg.is_some() && !report.ffmpeg.as_ref().is_some_and(|t| t.healthy)
                     {
-                        return Err("FFmpeg check failed".into());
+                        return Err(optional_health_failure("FFmpeg", report.ffmpeg.as_ref()));
                     }
                     if custom.ffprobe.is_some()
                         && !report.ffprobe.as_ref().is_some_and(|t| t.healthy)
                     {
-                        return Err("ffprobe check failed".into());
+                        return Err(optional_health_failure("ffprobe", report.ffprobe.as_ref()));
                     }
                     if custom.deno.is_some() && !report.deno.as_ref().is_some_and(|t| t.healthy) {
-                        return Err("Deno check failed".into());
+                        return Err(optional_health_failure("Deno", report.deno.as_ref()));
                     }
                     out.status = format!(
                         "yt-dlp {} · FFmpeg {} · ffprobe {} · Deno {}",
@@ -226,6 +230,23 @@ impl Downloader {
         Self::listen(rx, cx);
         cx.notify();
     }
+}
+fn health_failure(tool: &ToolHealth) -> String {
+    format!(
+        "{}: {}",
+        tool.path.display(),
+        tool.error
+            .as_ref()
+            .map(ToString::to_string)
+            .unwrap_or_else(|| "No version output".into())
+    )
+}
+fn optional_health_failure(name: &str, tool: Option<&ToolHealth>) -> String {
+    format!(
+        "{name} check failed\n{}",
+        tool.map(health_failure)
+            .unwrap_or_else(|| "Tool unavailable".into())
+    )
 }
 fn persist(paths: &CustomToolPaths) -> std::result::Result<(), String> {
     let path = crate::preferences::path().ok_or("Cannot locate settings")?;

@@ -116,7 +116,30 @@ impl Downloader {
                     cx,
                 ));
             if let Some(error) = &d.error {
-                info = info.child(muted(cx, error.clone()));
+                let detail = error.clone();
+                info = info.child(
+                    div()
+                        .h_flex()
+                        .items_center()
+                        .gap_2()
+                        .child(
+                            muted(cx, crate::drafts::error_preview(&detail))
+                                .flex_1()
+                                .min_w_0(),
+                        )
+                        .child(
+                            controls::icon_button(
+                                SharedString::from(format!("copy-error-{}", d.id)),
+                                IconName::Copy,
+                                crate::i18n::tr("复制错误详情"),
+                                cx,
+                            )
+                            .on_click(move |_, _, cx| {
+                                cx.stop_propagation();
+                                cx.write_to_clipboard(ClipboardItem::new_string(detail.clone()));
+                            }),
+                        ),
+                );
             }
             panel = panel.child(
                 design::group(cx)
@@ -224,7 +247,30 @@ impl Downloader {
                 info = info.child(muted(cx, draft_state(d.state)));
             }
             if let Some(error) = &d.error {
-                info = info.child(muted(cx, error.clone()));
+                let detail = error.clone();
+                info = info.child(
+                    div()
+                        .h_flex()
+                        .items_center()
+                        .gap_2()
+                        .child(
+                            muted(cx, crate::drafts::error_preview(&detail))
+                                .flex_1()
+                                .min_w_0(),
+                        )
+                        .child(
+                            controls::icon_button(
+                                SharedString::from(format!("copy-error-{}", d.id)),
+                                IconName::Copy,
+                                crate::i18n::tr("复制错误详情"),
+                                cx,
+                            )
+                            .on_click(move |_, _, cx| {
+                                cx.stop_propagation();
+                                cx.write_to_clipboard(ClipboardItem::new_string(detail.clone()));
+                            }),
+                        ),
+                );
             }
             body = body.child(
                 design::group(cx)

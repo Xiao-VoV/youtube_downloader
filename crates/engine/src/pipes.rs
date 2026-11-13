@@ -5,6 +5,24 @@ use std::{io::Read, process::Child, sync::mpsc, thread};
 pub(crate) struct Output {
     pub stdout: Vec<u8>,
     pub stderr: Vec<u8>,
+    pub stderr_truncated: bool,
+}
+impl Output {
+    /// Diagnostics are bounded by the pipe capture budget and kept in memory.
+    pub(crate) fn with_diagnostics(&self, mut error: EngineError) -> EngineError {
+        if !self.stderr.is_empty() {
+            error.message.push_str("\nstderr:\n");
+            error
+                .message
+                .push_str(&String::from_utf8_lossy(&self.stderr));
+        }
+        if self.stderr_truncated {
+            error
+                .message
+                .push_str("\n[stderr truncated at configured limit]");
+        }
+        error
+    }
 }
 pub(super) enum Chunk {
     Data(bool, Vec<u8>),
@@ -79,6 +97,7 @@ impl PipeState {
                     .saturating_sub(self.output.stderr.len())
                     .min(bytes.len());
                 self.output.stderr.extend_from_slice(&bytes[..keep]);
+                self.output.stderr_truncated |= keep < bytes.len();
             }
             Chunk::Data(true, bytes) if !ignore_stdout => self.stdout(bytes, config, line)?,
             _ => {}
