@@ -1,6 +1,6 @@
-# 拾光开发指南
+# YTDer 开发指南
 
-[中文首页](<../README.md>) · [English README](<../README.en.md>)
+[English README](<../README.md>) · [中文 README](<../README.zh.md>)
 
 本文保留面向维护者的配置与模块说明。项目处于开发预览阶段；功能清单应区分源码实现、离线测试、原生交互验收和真实站点验证，不能相互替代。
 
