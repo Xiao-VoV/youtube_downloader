@@ -1,10 +1,10 @@
 <div align="center">
 
-# 拾光 · Shiguang
+# YTDer
 
 **从一个链接开始，留住值得收藏的内容。**
 
-基于 Rust 与 GPUI Kit 的原生 YouTube 下载桌面应用。<br>
+基于 Rust 与 GPUI Kit 的原生 yt-dlp 桌面应用。<br>
 把视频解析、下载配置和命令确认，放进一个清晰的本地工作流。
 
 [![Rust](https://img.shields.io/badge/Built_with-Rust-000000?logo=rust)](https://www.rust-lang.org/)
@@ -19,15 +19,15 @@
 </div>
 
 <p align="center">
-  <img src="docs/images/preferences.png" alt="拾光 macOS 开发预览：下载配置，包含分辨率、格式、浏览器 Cookie 与代理选项" width="880" />
+  <img src="docs/images/preferences.png" alt="YTDer macOS 开发预览：下载配置，包含分辨率、格式、浏览器 Cookie 与代理选项" width="880" />
 </p>
 
 > [!IMPORTANT]
 > **这是开发预览，不是稳定发行版。** 当前以 macOS 源码运行体验为主；真实站点下载与完整原生交互尚未完成验收。并行任务与历史记录正在开发接线中，不作为已验证能力宣传。截图来自已有原生窗口，可能与最新开发中的界面不同；不代表成功下载证明。
 
-## 为什么是拾光？
+## 为什么是 YTDer？
 
-命令行工具足够强大，日常下载也可以更直观。拾光希望保留 [yt-dlp](https://github.com/yt-dlp/yt-dlp) 的能力，同时把常用选择变得清晰、可复用、可检查。
+命令行工具足够强大，日常下载也可以更直观。YTDer希望保留 [yt-dlp](https://github.com/yt-dlp/yt-dlp) 的能力，同时把常用选择变得清晰、可复用、可检查。
 
 - **把注意力留给内容。** 用图形界面选择格式、分辨率与保存目录，而不是每次重写一串参数。
 - **在开始前看清楚。** 先解析，再查看配置摘要与经脱敏的命令，确认后才执行下载。
@@ -48,7 +48,6 @@
 | 🛑 任务控制 | 下载进度、取消与进程收尾；成功完成后可在 Finder 中定位文件 |
 | 🛡️ 文件与进程边界 | 结构化 argv 执行，不调用 shell；禁用插件及远程组件，校验最终产物 |
 
-> “已有实现”不等于“所有站点、格式和浏览器组合均已实测”。可用性取决于源视频、网络、yt-dlp、浏览器权限及本地依赖。
 
 ### 选择适合你的输出
 
@@ -65,11 +64,11 @@
 
 ### 任务页 · 清晰的开始
 
-![拾光原生任务页，展示新建下载入口与空状态](<docs/images/tasks.png>)
+![YTDer原生任务页，展示新建下载入口与空状态](<docs/images/tasks.png>)
 
 ### 下载配置 · 把偏好变成习惯
 
-![拾光原生下载配置页，展示格式、质量、Cookie、代理与高级参数](<docs/images/preferences.png>)
+![YTDer原生下载配置页，展示格式、质量、Cookie、代理与高级参数](<docs/images/preferences.png>)
 
 *以上为 macOS 原生开发预览截图，界面目前以中文为主；中英双语 README 不代表应用已经具备英文界面。配置截图早于“最佳可用”与具体浏览器 Profile 输入等后续调整。*
 
@@ -183,14 +182,14 @@ MP4 仍限制 H.264 / AAC。源视频不一定提供对应编码的高分辨率�
 站点策略、yt-dlp 版本、登录状态和本地挑战组件都会影响结果。应用禁用远程组件自动下载；工具健康检查不代表站点一定可用。
 
 **为什么高级参数不能照搬命令行？**<br>
-拾光不是任意 yt-dlp CLI 编辑器。请使用白名单参数，每行一个 argv token，例如 `--limit-rate` 和 `2M` 分占两行。
+YTDer不是任意 yt-dlp CLI 编辑器。请使用白名单参数，每行一个 argv token，例如 `--limit-rate` 和 `2M` 分占两行。
 
 **配置保存在哪里？**<br>
-macOS 用户目录下的 `~/Library/Application Support/Shiguang/profiles.json`。具体浏览器 Profile 可填写 `Default`、`Profile 1` 或 Firefox profile 目录，留空由 yt-dlp 选择；不接受 `:`、`+`、`#` 复合语法。
+macOS 用户目录下的 `~/Library/Application Support/YTDer/profiles.json`。具体浏览器 Profile 可填写 `Default`、`Profile 1` 或 Firefox profile 目录，留空由 yt-dlp 选择；不接受 `:`、`+`、`#` 复合语法。
 
 ## 参与贡献
 
-欢迎一起把拾光打磨成更可靠、更好用的原生工具：
+欢迎一起把YTDer打磨成更可靠、更好用的原生工具：
 
 - **报告问题**：提供 macOS 版本、提交版本、本地工具版本、复现步骤和脱敏日志。
 - **改进体验**：分享下载流程、可访问性、文案和界面方面的建议。

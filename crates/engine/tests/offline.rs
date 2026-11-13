@@ -57,32 +57,25 @@ impl Drop for Fixture {
     }
 }
 #[test]
-fn normalize_single_video_and_reject_untrusted_inputs() {
+fn normalize_public_media_urls_and_reject_untrusted_inputs() {
     for input in [
         "https://youtu.be/dQw4w9WgXcQ?t=1",
         "https://www.youtube.com/watch?v=dQw4w9WgXcQ&list=PL123",
-        "http://m.youtube.com/shorts/dQw4w9WgXcQ",
-        "https://music.youtube.com/watch?v=dQw4w9WgXcQ",
+        "https://vimeo.com/123456",
+        "https://example.test/media/file.mp4?token=public",
     ] {
-        assert_eq!(
-            normalize_url(input).unwrap(),
-            "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
-        );
+        assert_eq!(normalize_url(input).unwrap(), input);
     }
     for input in [
-        "https://youtube.com.evil.test/watch?v=dQw4w9WgXcQ",
-        "https://evil.test/youtube.com",
         "https://user@youtube.com/watch?v=dQw4w9WgXcQ",
-        "https://youtube.com/playlist?list=PL123",
         "file:///tmp/video",
-        "https://youtu.be/../dQw4w9WgXcQ\n",
-        "https://youtube.com/watch?v=dQw4w9WgXcQ&v=aaaaaaaaaaa",
-        "https://youtube.com:444/watch?v=dQw4w9WgXcQ",
-        "https://youtu.be/%64Qw4w9WgXcQ",
+        "https://example.test:444/media",
+        "https://example.test/media\n",
     ] {
         assert!(normalize_url(input).is_err(), "{input}");
     }
 }
+
 #[test]
 fn progress_null_and_sentinel() {
     let p = parse_progress(

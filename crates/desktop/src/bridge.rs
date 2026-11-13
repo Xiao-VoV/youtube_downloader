@@ -71,7 +71,7 @@ impl Downloader {
                         if out.paths.is_some() {
                             self.tools.effective = out.paths;
                         }
-                        if out.release.is_some() {
+                        if checking {
                             self.tools.release = out.release;
                         }
                         // Release checks do not own the installed-version state: a
@@ -149,9 +149,21 @@ fn route_event(
             return;
         }
         task.status = match event.kind {
-            EventKind::Starting => tr("正在启动…"),
-            EventKind::PostProcessing => tr("正在合并或转换…"),
-            EventKind::Progress(p) => progress_text(p),
+            EventKind::Starting => {
+                task.progress_fraction = None;
+                tr("正在启动…")
+            }
+            EventKind::PostProcessing => {
+                task.progress_fraction = None;
+                tr("正在合并或转换…")
+            }
+            EventKind::Progress(p) => {
+                task.progress_fraction = p
+                    .downloaded_bytes
+                    .zip(p.total_bytes.or(p.total_bytes_estimate).filter(|n| *n > 0))
+                    .map(|(done, total)| (done as f64 / total as f64).clamp(0.0, 1.0) as f32);
+                progress_text(p)
+            }
             _ => return,
         };
     }
@@ -193,8 +205,8 @@ mod tests {
                     title: id.into(),
                     attempt_id: id.into(),
                     tool_path: Default::default(),
-                    title_scroll: gpui_kit::ScrollHandle::new(),
                     status: "ready".into(),
+                    progress_fraction: None,
                     cancel: CancelToken::new(),
                     record: HistoryEntry {
                         id: id.into(),
@@ -209,6 +221,28 @@ mod tests {
                 },
             );
         }
+        let progress_event = |attempt: &str, downloaded, total| EngineEvent {
+            task_id: "one".into(),
+            attempt_id: attempt.into(),
+            kind: EventKind::Progress(youtube_engine::Progress {
+                status: None,
+                downloaded_bytes: Some(downloaded),
+                total_bytes: total,
+                total_bytes_estimate: None,
+                speed: None,
+                eta: None,
+                format_id: None,
+            }),
+        };
+        route_event(&mut tasks, progress_event("one", 50, Some(100)));
+        assert_eq!(tasks["one"].progress_fraction, Some(0.5));
+        assert_eq!(tasks["two"].progress_fraction, None);
+        route_event(&mut tasks, progress_event("old", 100, Some(100)));
+        assert_eq!(tasks["one"].progress_fraction, Some(0.5));
+        route_event(&mut tasks, progress_event("one", 50, Some(0)));
+        assert_eq!(tasks["one"].progress_fraction, None);
+        route_event(&mut tasks, progress_event("one", 150, Some(100)));
+        assert_eq!(tasks["one"].progress_fraction, Some(1.0));
         route_event(
             &mut tasks,
             EngineEvent {
@@ -217,6 +251,7 @@ mod tests {
                 kind: EventKind::PostProcessing,
             },
         );
+        assert_eq!(tasks["one"].progress_fraction, None);
         assert_ne!(tasks["one"].status, "ready");
         assert_eq!(tasks["two"].status, "ready");
         tasks["one"].cancel.cancel();

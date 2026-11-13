@@ -6,6 +6,21 @@ use std::{
 static ID: AtomicU64 = AtomicU64::new(0);
 
 #[test]
+fn generic_media_urls_roundtrip_through_history() {
+    let f = Fixture::new();
+    let mut h = History::load_at(f.db());
+    let mut e = entry();
+    e.id = "vimeo".into();
+    e.url = "https://vimeo.com/123456".into();
+    e.metadata.original_url = e.url.clone();
+    h.upsert(e).unwrap();
+    assert_eq!(
+        h.page(HistorySort::default(), 0, 10).unwrap().entries[0].url,
+        "https://vimeo.com/123456"
+    );
+}
+
+#[test]
 fn extended_media_columns_sort_numerically_and_page_globally() {
     let f = Fixture::new();
     let mut h = History::load_at(f.db());

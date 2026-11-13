@@ -158,8 +158,13 @@ impl Downloader {
                 match &operation {
                     Operation::Check => {
                         let r = manager.check_release()?;
-                        out.status = format!("{} {}", tr("官方版本"), r.version);
-                        out.release = Some(r);
+                        let installed = manager.installed_versions()?;
+                        if installed.iter().any(|v| v.version == r.version) {
+                            out.status = format!("{} {}", tr("已是最新版本"), r.version);
+                        } else {
+                            out.status = format!("{} {}", tr("官方版本"), r.version);
+                            out.release = Some(r);
+                        }
                     }
                     Operation::Install => {
                         let path = manager.install_only(release.as_ref().unwrap())?;

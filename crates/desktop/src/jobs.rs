@@ -8,8 +8,9 @@ pub(crate) struct ActiveDownload {
     pub title: String,
     pub attempt_id: String,
     pub tool_path: std::path::PathBuf,
-    pub title_scroll: ScrollHandle,
     pub status: String,
+    /// Current track only; reset for startup and post-processing.
+    pub progress_fraction: Option<f32>,
     pub cancel: CancelToken,
     pub record: crate::history::HistoryEntry,
 }
@@ -74,9 +75,9 @@ impl Downloader {
                     .as_ref()
                     .map(|p| p.yt_dlp.clone())
                     .unwrap_or_default(),
-                title_scroll: ScrollHandle::new(),
                 record,
                 status: tr("准备下载…"),
+                progress_fraction: None,
                 cancel: job.cancel.clone(),
             },
         );

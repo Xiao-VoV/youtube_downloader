@@ -25,7 +25,7 @@ fn main() {
         .with_assets(gpui_kit::assets::AllAssets)
         .run(|cx| {
             gpui_kit::init(cx);
-            let bounds = Bounds::centered(None, size(px(1040.), px(780.)), cx);
+            let bounds = Bounds::centered(None, size(px(1120.), px(780.)), cx);
             gpui_kit::open_window(
                 WindowOptions {
                     window_bounds: Some(WindowBounds::Windowed(bounds)),
@@ -48,6 +48,13 @@ fn main() {
                     let weak = view.downgrade();
                     window.on_window_should_close(cx, move |_, cx| {
                         weak.update(cx, |this, cx| {
+                            if this.shutting_down
+                                && !this.busy
+                                && this.probe_job.is_none()
+                                && this.running.is_empty()
+                            {
+                                return true;
+                            }
                             if this.busy || this.probe_job.is_some() || !this.running.is_empty() {
                                 this.shutting_down = true;
                                 if let Some((_, cancel)) = &this.probe_job {

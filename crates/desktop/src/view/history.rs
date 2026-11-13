@@ -1,5 +1,6 @@
 //! Selectable history table; actions operate on stable record IDs, never row indexes.
-use super::muted;
+use super::controls::{self, Tone};
+use super::{design, muted};
 use crate::{
     app::Downloader,
     history::{HistoryEntry, HistorySort, PageOrder},
@@ -9,7 +10,7 @@ use crate::{
 };
 use gpui_kit::{
     base::{Scrollbar, ScrollbarMode},
-    component::{button::*, tooltip::Tooltip, *},
+    component::{checkbox::Checkbox, tooltip::Tooltip, *},
     *,
 };
 impl Downloader {
@@ -29,7 +30,11 @@ impl Downloader {
             Column::Duration => PageOrder::Duration,
             Column::Finished => PageOrder::Finished,
         };
-        let mut body = div().v_flex().gap_3().child(self.history_actions(cx));
+        let mut body = div()
+            .v_flex()
+            .gap_3()
+            .w_full()
+            .child(self.history_actions(cx));
         if self.history_columns_open {
             body = body.child(self.column_picker(cx));
         }
@@ -44,8 +49,7 @@ impl Downloader {
             Ok(p) => p,
             Err(e) => return body.child(muted(cx, e)),
         };
-        body = body.child(self.history_pagination(page.total, cx));
-        let width = 100.
+        let width = 116.
             + self
                 .history_columns
                 .iter()
@@ -61,69 +65,79 @@ impl Downloader {
             .h_flex()
             .items_center()
             .gap_2()
-            .px_2()
-            .h(px(36.))
-            .bg(cx.theme().muted)
+            .px_3()
+            .h(px(38.))
+            .border_b_1()
+            .border_color(design::border(cx))
+            .bg(design::canvas(cx))
+            .text_color(design::muted(cx))
             .child(
-                Button::new("select-page")
-                    .ghost()
-                    .xsmall()
+                div()
                     .w(px(36.))
-                    .label(if all { "☑" } else { "☐" })
-                    .tooltip(tr("选择当前页"))
-                    .on_click(cx.listener(move |this, _, _, cx| {
-                        this.history_delete = None;
-                        for id in &ids {
-                            if all {
-                                this.history_selected.remove(id);
-                            } else {
-                                this.history_selected.insert(id.clone());
-                            }
-                        }
-                        cx.notify();
-                    })),
+                    .flex_shrink_0()
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .child(
+                        Checkbox::new("select-page")
+                            .checked(all)
+                            .label("")
+                            .on_click(cx.listener(move |this, checked, _, cx| {
+                                this.history_delete = None;
+                                for id in &ids {
+                                    if *checked {
+                                        this.history_selected.insert(id.clone());
+                                    } else {
+                                        this.history_selected.remove(id);
+                                    }
+                                }
+                                cx.notify();
+                            })),
+                    ),
             )
             .child(muted(cx, tr("序号")).w(px(48.)).flex_shrink_0());
-        for (n, field) in self.history_columns.iter().copied().enumerate() {
+        for field in self.history_columns.iter().copied() {
             let sort = field_sort(field);
-            let arrow = if sort == Some(self.history_sort.column) {
-                if self.history_sort.descending {
-                    " ↓"
-                } else {
-                    " ↑"
-                }
+            let active = sort == Some(self.history_sort.column);
+            let mut cell = controls::button(
+                SharedString::from(format!("history-header-{field:?}")),
+                tr(field.label()),
+                Tone::Quiet,
+                cx,
+            )
+            .w(px(field.width()))
+            .h(px(30.))
+            .px_0()
+            .text_color(if active {
+                design::accent()
             } else {
-                ""
-            };
-            header = header.child(
-                div()
-                    .id(("header", n))
-                    .w(px(field.width()))
-                    .flex_shrink_0()
-                    .text_xs()
-                    .font_semibold()
-                    .cursor_pointer()
-                    .child(format!("{}{arrow}", tr(field.label())))
-                    .on_click(cx.listener(move |this, _, _, cx| {
-                        if let Some(sort) = sort {
-                            this.history_sort.toggle(sort);
-                            this.history_page = 0;
-                            cx.notify();
-                        }
-                    })),
-            );
+                design::muted(cx)
+            })
+            .disabled(sort.is_none());
+            if active {
+                cell = cell.icon(design::glyph(if self.history_sort.descending {
+                    "chevron-down"
+                } else {
+                    "chevron-up"
+                }));
+            }
+            header = header.child(cell.on_click(cx.listener(move |this, _, _, cx| {
+                if let Some(sort) = sort {
+                    this.history_sort.toggle(sort);
+                    this.history_page = 0;
+                    cx.notify();
+                }
+            })));
         }
         let mut table = div().v_flex().w(px(width)).child(header);
         for (index, e) in page.entries.iter().enumerate() {
             table = table.child(self.history_row(index, e, cx));
         }
         body.child(
-            div()
+            design::group(cx)
+                .v_flex()
                 .relative()
                 .w_full()
-                .rounded_lg()
-                .border_1()
-                .border_color(cx.theme().border)
                 .overflow_hidden()
                 .child(
                     div()
@@ -134,72 +148,65 @@ impl Downloader {
                         .pb(px(20.))
                         .child(table),
                 )
-                .child(Scrollbar::horizontal(&self.history_scroll).mode(ScrollbarMode::Always)),
+                .child(Scrollbar::horizontal(&self.history_scroll).mode(ScrollbarMode::Always))
+                .children(page.entries.is_empty().then(|| {
+                    div()
+                        .h_flex()
+                        .items_center()
+                        .justify_center()
+                        .gap_2()
+                        .py_5()
+                        .text_color(design::muted(cx))
+                        .child(IconName::Inbox)
+                        .child(muted(cx, tr("暂无下载历史")))
+                })),
         )
+        .child(self.history_pagination(page.total, cx))
     }
     fn history_pagination(&self, total: usize, cx: &Context<Self>) -> Div {
         let pages = total.div_ceil(self.history_page_size).max(1);
         let mut row = div()
             .h_flex()
             .items_center()
+            .flex_wrap()
             .gap_1()
-            .py_2()
-            .child(muted(
-                cx,
-                format!(
-                    "{} {total} {} · {} {} / {pages}",
-                    tr("共"),
-                    tr("条"),
-                    tr("第"),
-                    self.history_page + 1
-                ),
-            ))
+            .py_1()
+            .child(muted(cx, format!("{} {total} {}", tr("共"), tr("条"))));
+        let mut sizes = controls::segments(cx);
+        for size in [25, 50, 100] {
+            sizes = sizes.child(
+                controls::segment(
+                    ("history-size", size),
+                    format!("{size} / {}", tr("页")),
+                    self.history_page_size == size,
+                    cx,
+                )
+                .on_click(cx.listener(move |this, _, _, cx| {
+                    this.history_page_size = size;
+                    this.history_page = 0;
+                    cx.notify();
+                })),
+            );
+        }
+        row = row.child(sizes);
+        row.child(div().flex_1())
             .child(
-                Button::new("history-prev")
-                    .ghost()
-                    .xsmall()
-                    .icon(IconName::ChevronLeft)
-                    .tooltip(tr("上一页"))
+                controls::icon_button("history-prev", IconName::ChevronLeft, tr("上一页"), cx)
                     .disabled(self.history_page == 0)
                     .on_click(cx.listener(|this, _, _, cx| {
                         this.history_page = this.history_page.saturating_sub(1);
                         cx.notify();
                     })),
             )
+            .child(muted(cx, format!("{} / {pages}", self.history_page + 1)))
             .child(
-                Button::new("history-next")
-                    .ghost()
-                    .xsmall()
-                    .icon(IconName::ChevronRight)
-                    .tooltip(tr("下一页"))
+                controls::icon_button("history-next", IconName::ChevronRight, tr("下一页"), cx)
                     .disabled(self.history_page + 1 >= pages)
                     .on_click(cx.listener(|this, _, _, cx| {
                         this.history_page += 1;
                         cx.notify();
                     })),
-            );
-        for size in [25, 50, 100] {
-            row = row.child(
-                Button::new(("history-size", size))
-                    .ghost()
-                    .xsmall()
-                    .label(format!(
-                        "{}{size} / {}",
-                        if self.history_page_size == size {
-                            "✓ "
-                        } else {
-                            ""
-                        },
-                        tr("页")
-                    ))
-                    .on_click(cx.listener(move |this, _, _, cx| {
-                        this.history_page_size = size;
-                        this.history_page = 0;
-                        cx.notify();
-                    })),
-            );
-        }
-        row
+            )
     }
 
     fn history_row(&self, index: usize, entry: &HistoryEntry, cx: &Context<Self>) -> Div {
@@ -209,29 +216,43 @@ impl Downloader {
             .h_flex()
             .items_center()
             .gap_2()
-            .px_2()
-            .h(px(36.))
+            .px_3()
+            .h(px(52.))
             .border_b_1()
-            .border_color(cx.theme().border)
+            .border_color(design::border(cx))
             .bg(if selected {
-                cx.theme().muted
+                design::selection(cx)
             } else {
-                cx.theme().background
+                design::surface(cx)
             })
-            .hover(|s| s.bg(cx.theme().muted))
+            .hover(|s| {
+                s.bg(if selected {
+                    design::selection(cx)
+                } else {
+                    design::canvas(cx)
+                })
+            })
             .child(
-                Button::new(("select-record", index))
-                    .ghost()
-                    .xsmall()
+                div()
                     .w(px(36.))
-                    .label(if selected { "☑" } else { "☐" })
-                    .on_click(cx.listener(move |this, _, _, cx| {
-                        if !this.history_selected.remove(&id) {
-                            this.history_selected.insert(id.clone());
-                        }
-                        this.history_delete = None;
-                        cx.notify();
-                    })),
+                    .flex_shrink_0()
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .child(
+                        Checkbox::new(SharedString::from(format!("select-record-{}", entry.id)))
+                            .label("")
+                            .checked(selected)
+                            .on_click(cx.listener(move |this, checked, _, cx| {
+                                if *checked {
+                                    this.history_selected.insert(id.clone());
+                                } else {
+                                    this.history_selected.remove(&id);
+                                }
+                                this.history_delete = None;
+                                cx.notify();
+                            })),
+                    ),
             )
             .child(
                 muted(
@@ -241,25 +262,69 @@ impl Downloader {
                 .w(px(48.))
                 .flex_shrink_0(),
             );
-        for (n, field) in self.history_columns.iter().copied().enumerate() {
+        for field in self.history_columns.iter().copied() {
             let text = field_text(field, entry);
-            row = row.child(
-                div()
-                    .id(("history-cell", index * 32 + n))
-                    .w(px(field.width()))
-                    .flex_shrink_0()
-                    .overflow_hidden()
-                    .whitespace_nowrap()
-                    .text_xs()
-                    .tooltip({
-                        let text = text.clone();
-                        move |window, cx| Tooltip::new(text.clone()).build(window, cx)
-                    })
-                    .child(text),
-            );
+            let mut cell = div()
+                .id(SharedString::from(format!(
+                    "history-cell-{}-{field:?}",
+                    entry.id
+                )))
+                .w(px(field.width()))
+                .flex_shrink_0()
+                .overflow_hidden()
+                .whitespace_nowrap()
+                .text_xs()
+                .text_color(if field == Field::Title {
+                    design::text(cx)
+                } else {
+                    design::muted(cx)
+                })
+                .tooltip({
+                    let text = text.clone();
+                    move |window, cx| Tooltip::new(text.clone()).build(window, cx)
+                });
+            if field == Field::Title {
+                cell = cell.child(div().font_semibold().child(text));
+            } else if field == Field::Status {
+                let (icon, color) = match entry.status {
+                    crate::history::HistoryStatus::Succeeded => {
+                        (IconName::CircleCheck, status_color(cx, 0x287b58, 0x79cfa6))
+                    }
+                    crate::history::HistoryStatus::Failed => (IconName::Info, cx.theme().danger),
+                    crate::history::HistoryStatus::Running => {
+                        (IconName::ArrowDown, design::accent())
+                    }
+                    crate::history::HistoryStatus::Cancelled => {
+                        (IconName::Close, design::muted(cx))
+                    }
+                    crate::history::HistoryStatus::Interrupted => {
+                        (IconName::RefreshCw, status_color(cx, 0x947036, 0xd8b57a))
+                    }
+                };
+                cell = cell.child(
+                    div()
+                        .h_flex()
+                        .items_center()
+                        .gap_1()
+                        .text_color(color)
+                        .child(Icon::new(icon).size_3())
+                        .child(text),
+                );
+            } else {
+                cell = cell.child(text);
+            }
+            row = row.child(cell);
         }
         row
     }
+}
+fn status_color(cx: &App, light: u32, dark: u32) -> Hsla {
+    rgb(if cx.theme().background.l < 0.5 {
+        dark
+    } else {
+        light
+    })
+    .into()
 }
 fn field_sort(f: Field) -> Option<Column> {
     match f {
@@ -288,7 +353,13 @@ fn field_text(f: Field, e: &HistoryEntry) -> String {
         Field::Time => format_time(e.started_at),
         Field::Resolution => m.height.map(|h| format!("{h}p")).unwrap_or("—".into()),
         Field::Format => m.ext.clone().unwrap_or("—".into()),
-        Field::Size => format!("{:.1} MB", size(e) as f64 / 1e6),
+        Field::Size => {
+            if e.artifacts.is_empty() {
+                "—".into()
+            } else {
+                format!("{:.1} MB", size(e) as f64 / 1e6)
+            }
+        }
         Field::Channel => m.channel.clone().unwrap_or("—".into()),
         Field::Bitrate => m
             .bitrate
@@ -327,6 +398,23 @@ fn format_duration(seconds: f64) -> String {
 }
 #[cfg(test)]
 mod duration_tests {
+    #[test]
+    fn missing_artifacts_do_not_show_zero_megabytes() {
+        let entry = crate::history::HistoryEntry {
+            id: "unknown-size".into(),
+            title: "Example".into(),
+            url: "https://youtu.be/abcdefghijk".into(),
+            started_at: 0,
+            finished_at: None,
+            status: crate::history::HistoryStatus::Failed,
+            artifacts: vec![],
+            metadata: Default::default(),
+        };
+        assert_eq!(
+            super::field_text(crate::history_columns::Field::Size, &entry),
+            "—"
+        );
+    }
     #[test]
     fn duration_uses_hours_minutes_seconds() {
         for (seconds, expected) in [

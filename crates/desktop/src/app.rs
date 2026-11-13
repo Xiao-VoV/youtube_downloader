@@ -11,6 +11,8 @@ use youtube_engine::*;
 use crate::messages::{Update, error_text};
 pub(crate) struct Downloader {
     pub(crate) page: crate::settings::Page,
+    pub(crate) settings_tools_tab: bool,
+    pub(crate) tool_paths_open: bool,
     pub(crate) appearance: crate::preferences::Appearance,
     pub(crate) tools: crate::tool_settings::ToolSettings,
     pub(crate) settings: crate::settings::Settings,
@@ -42,8 +44,6 @@ pub(crate) struct Downloader {
     pub(crate) mode: Mode,
     pub(crate) output: Option<PathBuf>,
     pub(crate) status: String,
-    pub(crate) status_observed: String,
-    pub(crate) status_since: std::time::Instant,
     pub(crate) health: String,
     pub(crate) busy: bool,
     pub(crate) cancel: Option<CancelToken>,
@@ -55,10 +55,7 @@ impl Downloader {
         crate::i18n::set_language(crate::preferences::load_language());
         let appearance = crate::preferences::load();
         crate::preferences::apply(appearance, window, cx);
-        let url = cx.new(|cx| {
-            InputState::new(window, cx)
-                .placeholder(tr("粘贴 YouTube 视频链接，例如 https://youtu.be/…"))
-        });
+        let url = cx.new(|cx| InputState::new(window, cx).placeholder(tr("粘贴 YouTube 视频链接")));
         let sub = cx.subscribe(&url, |this, _, event: &InputEvent, cx| {
             if matches!(event, InputEvent::Change) {
                 this.media = None;
@@ -152,6 +149,8 @@ impl Downloader {
         Self {
             page: crate::settings::Page::New,
             appearance,
+            settings_tools_tab: false,
+            tool_paths_open: false,
             tools,
             settings,
             pending: None,
@@ -178,8 +177,6 @@ impl Downloader {
             mode,
             output,
             status: String::new(),
-            status_observed: String::new(),
-            status_since: std::time::Instant::now(),
             health: tr("正在检查本地工具…"),
             busy: false,
             cancel: None,
@@ -279,7 +276,7 @@ impl Downloader {
         self.queued.push_back((request, profile));
         self.start_queued(cx);
         self.page = crate::settings::Page::Tasks;
-        self.status = tr("任务已启动，可继续新建下载或编辑配置。");
+        self.status = tr("已加入下载队列");
         cx.notify();
     }
     pub(crate) fn choose_directory(&mut self, cx: &mut Context<Self>) {

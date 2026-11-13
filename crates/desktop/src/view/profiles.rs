@@ -1,46 +1,43 @@
 //! Preset editor: common controls first, advanced arguments explicitly separated.
-use super::muted;
+use super::{
+    controls::{self, Tone},
+    muted,
+};
 use crate::i18n::tr;
 use crate::{app::Downloader, settings::Page};
-use gpui_kit::prelude::FluentBuilder;
 use gpui_kit::{
-    component::{
-        button::*,
-        input::{Input, Textarea},
-        *,
-    },
+    component::{input::Textarea, *},
     *,
 };
 use youtube_engine::*;
 impl Downloader {
     pub(super) fn preset_switcher(&self, cx: &Context<Self>) -> Div {
-        let mut row = div().h_flex().gap_2().flex_wrap();
+        let mut row = div().v_flex().gap_2().w(px(156.)).flex_shrink_0();
         for (i, preset) in self.settings.store.presets.iter().enumerate() {
             let preset = preset.clone();
             row = row.child(
-                Button::new(("preset", i))
-                    .small()
-                    .label(format!(
-                        "{}{}",
-                        if self.settings.store.active_preset_id.as_ref() == Some(&preset.id) {
-                            "✓ "
+                controls::button(("preset", i), preset.name.clone(), Tone::Quiet, cx)
+                    .w_full()
+                    .h(px(42.))
+                    .icon(super::design::glyph(
+                        if preset.profile.mode == Mode::Video {
+                            "video"
                         } else {
-                            ""
+                            "music"
                         },
-                        preset.name
                     ))
                     .bg(
                         if self.settings.store.active_preset_id.as_ref() == Some(&preset.id) {
-                            cx.theme().muted
+                            super::design::selection(cx)
                         } else {
-                            cx.theme().background
+                            super::design::surface(cx)
                         },
                     )
-                    .border_color(
+                    .text_color(
                         if self.settings.store.active_preset_id.as_ref() == Some(&preset.id) {
                             super::design::accent()
                         } else {
-                            cx.theme().border
+                            super::design::muted(cx)
                         },
                     )
                     .disabled(self.busy)
@@ -94,134 +91,134 @@ impl Downloader {
         row
     }
     pub(super) fn profile_editor(&self, cx: &Context<Self>) -> Div {
-        div().v_flex().gap_4().w_full()
-            .when(self.page!=Page::TaskOptions,|panel|panel.max_w(px(960.)).mx_auto())
-            .children((self.page!=Page::TaskOptions && !self.settings.store.presets.is_empty()).then(||div().pb_2().child(self.preset_switcher(cx))))
-            .child(super::fields::panel(tr("画质与格式"),IconName::Settings,cx)
-                .child(super::fields::row(div().text_sm().child(tr("配置名称")),Input::new(&self.settings.name).small(),cx))
-                .child(self.quality_controls(cx)))
-            .child(super::fields::panel(tr("认证与网络"),IconName::Globe,cx)
-                .child(self.cookie_controls(cx))
-                .child(super::fields::row(super::help::label("代理 URL","留空直连；支持 http(s)、socks4/5。含凭据的代理仅本次会话使用。","network-options"),Input::new(&self.settings.proxy).small(),cx)))
-            .child(super::fields::panel(tr("保存规则"),IconName::FolderOpen,cx)
-                .child(super::fields::row(div().text_sm().child(tr("保存位置…")),
-                    div().h_flex().items_center().gap_3()
-                        .child(muted(cx,self.output.as_ref().map(|p|p.display().to_string()).unwrap_or(tr("未选择"))).flex_1().min_w_0().overflow_hidden())
-                        .child(Button::new("folder").small().ghost().icon(IconName::FolderOpen).label(tr("保存位置…"))
-                            .on_click(cx.listener(|this,_,_,cx|this.choose_directory(cx)))),cx))
-                .child(super::fields::row(super::help::label("文件名模板","支持 title/id/channel/uploader/extractor。文件名必须以 .%(ext)s 结尾；不允许绝对路径或越界。","output-template"),Input::new(&self.settings.filename_template).small(),cx))
-                .child(super::fields::row(super::help::label("子目录模板","留空直接保存；示例 %(extractor)s/%(channel)s。只允许安全相对路径。","output-template"),Input::new(&self.settings.folder_template).small(),cx)))
+        let options = self.page == Page::TaskOptions;
+        let content = div()
+            .v_flex().gap_5().flex_1().min_w_0()
+            .child(super::design::section(cx, tr("画质与格式"))
+                .child(super::design::group(cx).v_flex()
+                    .children((!options).then(|| super::fields::row(
+                        div().child(tr("配置名称")), controls::input(&self.settings.name, cx), cx)))
+                    .child(self.quality_controls(cx))))
+            .child(super::design::section(cx, tr("保存位置"))
+                .child(super::design::group(cx).v_flex()
+                    .child(super::fields::row(div().child(tr("保存到")),
+                        div().h_flex().items_center().gap_3()
+                            .child(muted(cx, self.output.as_ref().map(|p| p.display().to_string()).unwrap_or(tr("未选择")))
+                                .flex_1().min_w_0().overflow_hidden())
+                            .child(controls::button("folder", tr("更改"), Tone::Secondary, cx).icon(IconName::FolderOpen)
+                                .on_click(cx.listener(|this, _, _, cx| this.choose_directory(cx)))), cx))
+                    .child(super::fields::row(
+                        super::help::label("文件名模板", "支持 title/id/channel/uploader/extractor。文件名必须以 .%(ext)s 结尾；不允许绝对路径或越界。", "output-template"),
+                        controls::input(&self.settings.filename_template, cx), cx))
+                    .child(super::fields::row(
+                        super::help::label("子目录模板", "留空直接保存；示例 %(extractor)s/%(channel)s。只允许安全相对路径。", "output-template"),
+                        controls::input(&self.settings.folder_template, cx), cx))))
+            .child(self.network_controls(cx))
             .child(self.advanced_controls(cx))
-            .child(
-                div()
-                    .h_flex()
-                    .gap_3()
-                    .child(
-                        Button::new("save-preset").small()
-                            .primary()
-                            .label(tr("另存为配置"))
-                            .on_click(cx.listener(|this, _, _, cx| this.save_preset(cx))),
-                    )
-                    .child(
-                        Button::new("update-preset").small()
-                            .label(tr("保存修改"))
-                            .disabled(self.page==Page::TaskOptions || self.settings.store.active_preset_id.is_none())
-                            .on_click(cx.listener(|this, _, _, cx| this.update_preset(cx))),
-                    )
-                    .child(
-                        Button::new("delete-preset").small()
-                            .label(
-                                if self.settings.delete_candidate
-                                    == self.settings.store.active_preset_id
-                                    && self.settings.delete_candidate.is_some()
-                                {
-                                    tr("确认删除配置")
-                                } else {
-                                    tr("删除配置")
-                                },
-                            )
-                            .disabled(self.page==Page::TaskOptions || self.settings.store.active_preset_id.is_none())
-                            .on_click(cx.listener(|this, _, _, cx| this.delete_preset(cx))),
-                    )
-                    .child(Button::new("use").label(tr("应用并返回")).on_click(cx.listener(
-                        |this, _, _, cx| {
-                            if this.page==Page::TaskOptions {this.save_draft_editor(cx);this.page=Page::Detail;}else{this.media=None;this.page=Page::New;}
-                            cx.notify();
-                        },
-                    ))),
+            .children((!options).then(|| div().h_flex().flex_wrap().items_center().gap_2()
+                .pt_3()
+                .child(controls::button("delete-preset", "", Tone::Danger, cx)
+                    .label(if self.settings.delete_candidate == self.settings.store.active_preset_id
+                        && self.settings.delete_candidate.is_some() { tr("确认删除配置") } else { tr("删除配置") })
+                    .disabled(self.settings.store.active_preset_id.is_none())
+                    .on_click(cx.listener(|this, _, _, cx| this.delete_preset(cx))))
+                .child(div().flex_1())
+                .child(controls::button("save-preset", tr("另存为配置"), Tone::Secondary, cx)
+                    .on_click(cx.listener(|this, _, _, cx| this.save_preset(cx))))
+                .child(controls::button("update-preset", tr("保存修改"), Tone::Primary, cx).disabled(self.settings.store.active_preset_id.is_none())
+                    .on_click(cx.listener(|this, _, _, cx| this.update_preset(cx))))));
+        div()
+            .h_flex()
+            .items_start()
+            .gap_5()
+            .w_full()
+            .max_w(px(900.))
+            .mx_auto()
+            .children(
+                (!options && !self.settings.store.presets.is_empty())
+                    .then(|| self.preset_switcher(cx)),
             )
+            .child(content)
+    }
+    fn network_controls(&self, cx: &Context<Self>) -> Div {
+        super::design::section(cx, tr("网络与浏览器授权")).child(
+            super::design::group(cx)
+                .v_flex()
+                .child(self.cookie_controls(cx))
+                .child(super::fields::row(
+                    super::help::label(
+                        "代理 URL",
+                        "留空直连；支持 http(s)、socks4/5。含凭据的代理仅本次会话使用。",
+                        "network-options",
+                    ),
+                    controls::input(&self.settings.proxy, cx),
+                    cx,
+                )),
+        )
     }
     fn advanced_controls(&self, cx: &Context<Self>) -> Div {
         let mut section = div().v_flex().gap_2().child(
-            Button::new("advanced-toggle")
-                .small()
-                .label(if self.settings.advanced_open {
-                    tr("▾ 高级参数")
-                } else {
-                    tr("▸ 高级参数")
-                })
-                .on_click(cx.listener(|this, _, _, cx| {
-                    this.settings.advanced_open = !this.settings.advanced_open;
-                    cx.notify();
-                })),
+            controls::disclosure(
+                "advanced-toggle",
+                tr("高级参数"),
+                self.settings.advanced_open,
+                cx,
+            )
+            .tooltip(tr("每行一个参数或值；支持字幕、限速与重试。"))
+            .on_click(cx.listener(|this, _, _, cx| {
+                this.settings.advanced_open = !this.settings.advanced_open;
+                cx.notify();
+            })),
         );
         if self.settings.advanced_open {
-            section = section
-                .child(Textarea::new(&self.settings.extra).h(px(100.)))
-                .child(muted(cx, tr("每行一个参数或值；支持字幕、限速与重试。")));
+            section = section.child(Textarea::new(&self.settings.extra).h(px(100.)));
         }
         section
     }
     fn quality_controls(&self, cx: &Context<Self>) -> Div {
         let mut row = div().v_flex();
-        let mut heights = div().h_flex().gap_2().flex_wrap().child(
-            Button::new("best-resolution")
-                .small()
-                .label(if self.settings.profile.best_resolution {
-                    tr("✓ 最佳可用")
-                } else {
-                    tr("最佳可用")
-                })
-                .on_click(cx.listener(|this, _, _, cx| {
-                    this.settings.profile.best_resolution = true;
+        let mut heights = controls::segments(cx).flex_wrap().child(
+            controls::segment(
+                "best-resolution",
+                tr("最佳可用"),
+                self.settings.profile.best_resolution,
+                cx,
+            )
+            .on_click(cx.listener(|this, _, _, cx| {
+                this.settings.profile.best_resolution = true;
+                this.media = None;
+                cx.notify();
+            })),
+        );
+        for height in [480, 720, 1080, 1440, 2160] {
+            heights = heights.child(
+                controls::segment(
+                    ("height", height as usize),
+                    format!("{height}p"),
+                    !self.settings.profile.best_resolution
+                        && self.settings.profile.max_height == height,
+                    cx,
+                )
+                .on_click(cx.listener(move |this, _, _, cx| {
+                    this.settings.profile.best_resolution = false;
+                    this.settings.profile.max_height = height;
                     this.media = None;
                     cx.notify();
                 })),
-        );
-
-        for height in [480, 720, 1080, 1440, 2160] {
-            heights = heights.child(
-                Button::new(("height", height as usize))
-                    .small()
-                    .label(format!(
-                        "{}{}p",
-                        if !self.settings.profile.best_resolution
-                            && self.settings.profile.max_height == height
-                        {
-                            "✓ "
-                        } else {
-                            ""
-                        },
-                        height
-                    ))
-                    .on_click(cx.listener(move |this, _, _, cx| {
-                        this.settings.profile.best_resolution = false;
-                        this.settings.profile.max_height = height;
-                        this.media = None;
-                        cx.notify();
-                    })),
             );
         }
-        row = row.child(super::fields::row(
-            super::help::label(
-                "分辨率上限",
-                "最佳可用不限制高度；MP4仍限定H.264/AAC，MKV允许其他源编码。",
-                "format-selection",
-            ),
-            heights,
-            cx,
-        ));
-        let mut formats = div().h_flex().gap_2();
+        if self.mode == Mode::Video {
+            row = row.child(super::fields::row(
+                super::help::label(
+                    "分辨率上限",
+                    "最佳可用不限制高度；MP4仍限定H.264/AAC，MKV允许其他源编码。",
+                    "format-selection",
+                ),
+                heights,
+                cx,
+            ));
+        }
+        let mut formats = controls::segments(cx).flex_wrap();
         for (id, label, mode, container) in [
             ("mp4", "MP4", Mode::Video, VideoContainer::Mp4),
             ("mkv", "MKV", Mode::Video, VideoContainer::Mkv),
@@ -229,24 +226,18 @@ impl Downloader {
             ("mp3", "MP3", Mode::MP3, VideoContainer::Mp4),
         ] {
             formats = formats.child(
-                Button::new(id)
-                    .small()
-                    .label(format!(
-                        "{}{}",
-                        if self.mode == mode
-                            && (mode != Mode::Video || self.settings.profile.container == container)
-                        {
-                            "✓ "
-                        } else {
-                            ""
-                        },
-                        tr(label)
-                    ))
-                    .on_click(cx.listener(move |this, _, _, cx| {
-                        this.mode = mode;
-                        this.settings.profile.container = container.clone();
-                        cx.notify();
-                    })),
+                controls::segment(
+                    id,
+                    tr(label),
+                    self.mode == mode
+                        && (mode != Mode::Video || self.settings.profile.container == container),
+                    cx,
+                )
+                .on_click(cx.listener(move |this, _, _, cx| {
+                    this.mode = mode;
+                    this.settings.profile.container = container.clone();
+                    cx.notify();
+                })),
             );
         }
         row.child(super::fields::row(
@@ -261,7 +252,7 @@ impl Downloader {
     }
 
     fn cookie_controls(&self, cx: &Context<Self>) -> Div {
-        let mut row = div().h_flex().gap_2().flex_wrap();
+        let mut row = controls::segments(cx).flex_wrap();
         for (id, label, browser) in [
             ("none", "不使用", None),
             ("chrome", "Chrome", Some(BrowserCookies::Chrome)),
@@ -270,22 +261,17 @@ impl Downloader {
             ("edge", "Edge", Some(BrowserCookies::Edge)),
         ] {
             row = row.child(
-                Button::new(id)
-                    .small()
-                    .label(format!(
-                        "{}{}",
-                        if self.settings.profile.cookies_browser == browser {
-                            "✓ "
-                        } else {
-                            ""
-                        },
-                        tr(label)
-                    ))
-                    .on_click(cx.listener(move |this, _, _, cx| {
-                        this.settings.profile.cookies_browser = browser.clone();
-                        this.media = None;
-                        cx.notify();
-                    })),
+                controls::segment(
+                    id,
+                    tr(label),
+                    self.settings.profile.cookies_browser == browser,
+                    cx,
+                )
+                .on_click(cx.listener(move |this, _, _, cx| {
+                    this.settings.profile.cookies_browser = browser.clone();
+                    this.media = None;
+                    cx.notify();
+                })),
             );
         }
         let mut section = div().v_flex().child(super::fields::row(
@@ -304,7 +290,7 @@ impl Downloader {
                     "留空默认；可填 Default、Profile 1 或目录路径。不接受复合cookie语法。",
                     "authentication-options",
                 ),
-                Input::new(&self.settings.browser_profile).small(),
+                controls::input(&self.settings.browser_profile, cx),
                 cx,
             ));
         }
