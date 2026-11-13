@@ -5,6 +5,10 @@ ROOT=$(cd "$(dirname "$0")/.." && pwd)
 cd "$ROOT"
 
 APP_NAME="YTDer"
+BUNDLE_ID="com.xiaovov.ytder"
+# Ad-hoc is for local builds only. Release builds should select a stable
+# Developer ID Application identity to preserve identity across updates.
+SIGNING_IDENTITY=${SIGNING_IDENTITY:--}
 VERSION=$(awk -F '"' '/^version[[:space:]]*=/ { print $2; exit }' Cargo.toml)
 if [[ -z "$VERSION" ]]; then
   VERSION=$(awk -F '"' '/^version[[:space:]]*=/ { print $2; exit }' crates/desktop/Cargo.toml)
@@ -40,7 +44,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>CFBundleExecutable</key>
   <string>YTDer</string>
   <key>CFBundleIdentifier</key>
-  <string>com.xiaovov.ytder</string>
+  <string>$BUNDLE_ID</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleIconFile</key>
@@ -58,6 +62,18 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 PLIST
 
 /usr/bin/plutil -lint "$APP/Contents/Info.plist"
+# Sign only after all bundle contents are final. The linker's signature on the
+# naked executable does not seal Info.plist/resources and fails bundle validation.
+SIGN_ARGS=(--force --sign "$SIGNING_IDENTITY" --identifier "$BUNDLE_ID")
+if [[ "$SIGNING_IDENTITY" == "-" ]]; then
+  SIGN_ARGS+=(--timestamp=none)
+  echo "Local ad-hoc signature: macOS privacy grants may need renewal after rebuilding/replacing the app." >&2
+else
+  SIGN_ARGS+=(--options runtime --timestamp)
+fi
+/usr/bin/codesign "${SIGN_ARGS[@]}" "$APP"
+/usr/bin/codesign --verify --deep --strict --verbose=2 "$APP"
+/usr/bin/codesign -dr - "$APP"
 DMG_STAGE="$OUT/.dmg-stage"
 rm -rf "$DMG_STAGE"
 mkdir -p "$DMG_STAGE"

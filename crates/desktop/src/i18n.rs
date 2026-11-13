@@ -284,6 +284,16 @@ const CATALOG: &[(&str, &str)] = &[
     ),
     ("不使用", "None"),
     ("浏览器 Cookie", "Browser cookies"),
+    ("打开隐私设置", "Open privacy settings"),
+    ("无法找到或访问浏览器 Cookie 数据库", "Cannot find or access the browser cookie database"),
+    (
+        "请先核对浏览器 Profile 路径；Chrome 可在 chrome://version 查看 Profile Path。此错误也可能由 macOS 隐私权限限制引起，并不一定是权限不足。",
+        "Check the browser profile path first; Chrome shows Profile Path at chrome://version. macOS privacy restrictions can also cause this error; it does not necessarily mean permission is missing.",
+    ),
+    (
+        "macOS 可能限制读取浏览器 Cookie。若路径正确但仍无法访问，请在系统设置 → 隐私与安全性 → 完全磁盘访问权限中添加已安装的 YTDer，授权后完全退出并重新启动。自动化 → Chrome 不是此权限。仅向信任的应用授予此权限。",
+        "macOS may restrict browser cookie access. If the path is correct but access still fails, add the installed YTDer in System Settings → Privacy & Security → Full Disk Access, then quit and reopen it. Automation → Chrome is a different permission. Grant this access only to trusted apps.",
+    ),
     (
         "仅显式选择后读取浏览器Cookie；解析和下载共享选择，可能触发系统授权。",
         "Browser cookies are read only when selected; analysis and download share this setting and may request system permission.",
