@@ -205,7 +205,6 @@ mod tests {
                     title: id.into(),
                     attempt_id: id.into(),
                     tool_path: Default::default(),
-                    title_scroll: gpui_kit::ScrollHandle::new(),
                     status: "ready".into(),
                     progress_fraction: None,
                     cancel: CancelToken::new(),

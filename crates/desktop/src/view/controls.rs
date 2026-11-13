@@ -192,10 +192,15 @@ pub(super) fn inset_row(
         .child(div().text_size(px(13.)).child(label.into()))
         .child(control)
 }
-pub(super) fn page_title(title: impl Into<SharedString>, cx: &App) -> Div {
-    div()
-        .text_size(px(22.))
-        .font_semibold()
-        .text_color(design::text(cx))
-        .child(title.into())
+pub(super) fn disclosure(
+    id: impl Into<ElementId>,
+    label: impl Into<SharedString>,
+    open: bool,
+    cx: &App,
+) -> Button {
+    button(id, label, Tone::Quiet, cx).icon(if open {
+        IconName::ChevronDown
+    } else {
+        IconName::ChevronRight
+    })
 }

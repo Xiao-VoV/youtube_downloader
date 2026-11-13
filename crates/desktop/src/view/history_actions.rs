@@ -58,7 +58,7 @@ impl Downloader {
                     controls::button("bulk-finder", "", Tone::Quiet, cx)
                         .small()
                         .icon(IconName::FolderOpen)
-                        .label(tr("Finder 中显示"))
+                        .label(tr("打开所在位置"))
                         .on_click(cx.listener(|this, _, _, cx| {
                             let found = crate::reveal::locations(
                                 this.history
@@ -83,7 +83,7 @@ impl Downloader {
                                 let text = match result {
                                     Ok(()) => format!(
                                         "{} · {} {missing}",
-                                        tr("已请求 Finder 显示"),
+                                        tr("已请求打开所在位置"),
                                         tr("不可用记录")
                                     ),
                                     Err(e) => e,

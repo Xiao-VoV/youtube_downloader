@@ -105,17 +105,15 @@ impl Downloader {
                             .child(design::glyph(icon)),
                     )
                     .child(text)
-                    .children((!self.tool_paths_open).then(|| {
-                        controls::badge(
-                            tr(if effective.is_some() {
-                                "已定位"
-                            } else {
-                                "未配置"
-                            }),
-                            false,
-                            cx,
-                        )
-                    })),
+                    .child(controls::badge(
+                        tr(if effective.is_some() {
+                            "已定位"
+                        } else {
+                            "未配置"
+                        }),
+                        false,
+                        cx,
+                    )),
             );
         }
         let mut toolbar = div()

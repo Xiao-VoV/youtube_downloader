@@ -13,10 +13,3 @@ pub(super) fn row(label: Div, control: impl IntoElement, cx: &App) -> Div {
         .child(div().w(px(132.)).flex_shrink_0().child(label.text_xs()))
         .child(div().flex_1().min_w_0().child(control))
 }
-pub(super) fn panel(title: impl Into<SharedString>, _icon: IconName, cx: &App) -> Div {
-    div()
-        .v_flex()
-        .gap_3()
-        .child(design::heading(title))
-        .child(div().h(px(1.)).bg(design::border(cx)))
-}

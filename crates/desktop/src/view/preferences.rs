@@ -23,16 +23,9 @@ impl Downloader {
             .v_flex()
             .gap_5()
             .w_full()
-            .max_w(px(780.))
+            .max_w(px(900.))
             .mx_auto()
-            .child(
-                div()
-                    .h_flex()
-                    .items_center()
-                    .justify_between()
-                    .child(controls::page_title(tr("软件设置"), cx))
-                    .child(tabs),
-            );
+            .child(div().h_flex().justify_end().child(tabs));
         if self.settings_tools_tab {
             return page.child(self.tool_controls(cx));
         }

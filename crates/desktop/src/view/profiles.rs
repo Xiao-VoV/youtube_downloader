@@ -105,7 +105,7 @@ impl Downloader {
                         div().h_flex().items_center().gap_3()
                             .child(muted(cx, self.output.as_ref().map(|p| p.display().to_string()).unwrap_or(tr("未选择")))
                                 .flex_1().min_w_0().overflow_hidden())
-                            .child(controls::button("folder", tr("更改"), Tone::Secondary, cx).icon(IconName::FolderOpen).label(tr("更改"))
+                            .child(controls::button("folder", tr("更改"), Tone::Secondary, cx).icon(IconName::FolderOpen)
                                 .on_click(cx.listener(|this, _, _, cx| this.choose_directory(cx)))), cx))
                     .child(super::fields::row(
                         super::help::label("文件名模板", "支持 title/id/channel/uploader/extractor。文件名必须以 .%(ext)s 结尾；不允许绝对路径或越界。", "output-template"),
@@ -123,12 +123,11 @@ impl Downloader {
                     .disabled(self.settings.store.active_preset_id.is_none())
                     .on_click(cx.listener(|this, _, _, cx| this.delete_preset(cx))))
                 .child(div().flex_1())
-                .child(controls::button("save-preset", tr("另存为配置"), Tone::Secondary, cx).label(tr("另存为配置"))
+                .child(controls::button("save-preset", tr("另存为配置"), Tone::Secondary, cx)
                     .on_click(cx.listener(|this, _, _, cx| this.save_preset(cx))))
-                .child(controls::button("update-preset", tr("保存修改"), Tone::Primary, cx)
-                    .label(tr("保存修改")).disabled(self.settings.store.active_preset_id.is_none())
+                .child(controls::button("update-preset", tr("保存修改"), Tone::Primary, cx).disabled(self.settings.store.active_preset_id.is_none())
                     .on_click(cx.listener(|this, _, _, cx| this.update_preset(cx))))
-                .child(controls::button("use", tr("应用并返回"), Tone::Quiet, cx).label(tr("应用并返回"))
+                .child(controls::button("use", tr("应用并返回"), Tone::Quiet, cx)
                     .on_click(cx.listener(|this, _, _, cx| {
                         this.media = None; this.page = Page::New; cx.notify();
                     })))));
@@ -147,16 +146,16 @@ impl Downloader {
     }
     fn network_controls(&self, cx: &Context<Self>) -> Div {
         let mut panel = div().v_flex().gap_2().child(
-            controls::button("network-toggle", "", Tone::Quiet, cx)
-                .label(tr(if self.network_options_open {
-                    "▾ 网络与浏览器授权"
-                } else {
-                    "▸ 网络与浏览器授权"
-                }))
-                .on_click(cx.listener(|this, _, _, cx| {
-                    this.network_options_open = !this.network_options_open;
-                    cx.notify();
-                })),
+            controls::disclosure(
+                "network-toggle",
+                tr("网络与浏览器授权"),
+                self.network_options_open,
+                cx,
+            )
+            .on_click(cx.listener(|this, _, _, cx| {
+                this.network_options_open = !this.network_options_open;
+                cx.notify();
+            })),
         );
         if self.network_options_open {
             panel = panel.child(
@@ -178,17 +177,17 @@ impl Downloader {
     }
     fn advanced_controls(&self, cx: &Context<Self>) -> Div {
         let mut section = div().v_flex().gap_2().child(
-            controls::button("advanced-toggle", "", Tone::Quiet, cx)
-                .tooltip(tr("每行一个参数或值；支持字幕、限速与重试。"))
-                .label(if self.settings.advanced_open {
-                    tr("▾ 高级参数")
-                } else {
-                    tr("▸ 高级参数")
-                })
-                .on_click(cx.listener(|this, _, _, cx| {
-                    this.settings.advanced_open = !this.settings.advanced_open;
-                    cx.notify();
-                })),
+            controls::disclosure(
+                "advanced-toggle",
+                tr("高级参数"),
+                self.settings.advanced_open,
+                cx,
+            )
+            .tooltip(tr("每行一个参数或值；支持字幕、限速与重试。"))
+            .on_click(cx.listener(|this, _, _, cx| {
+                this.settings.advanced_open = !this.settings.advanced_open;
+                cx.notify();
+            })),
         );
         if self.settings.advanced_open {
             section = section.child(Textarea::new(&self.settings.extra).h(px(100.)));
