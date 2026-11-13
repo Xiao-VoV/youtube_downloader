@@ -71,7 +71,7 @@ impl Downloader {
                         if out.paths.is_some() {
                             self.tools.effective = out.paths;
                         }
-                        if out.release.is_some() {
+                        if checking {
                             self.tools.release = out.release;
                         }
                         // Release checks do not own the installed-version state: a

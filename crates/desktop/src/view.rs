@@ -31,35 +31,12 @@ impl Render for Downloader {
             .child(self.sidebar(cx))
             .child(
                 div()
+                    .relative()
                     .flex_1()
                     .min_w_0()
                     .v_flex()
                     .h_full()
                     .child(self.toolbar(cx))
-                    .children(notice.then(|| {
-                        div()
-                            .px_5()
-                            .py_2()
-                            .bg(design::selection(cx))
-                            .h_flex()
-                            .items_center()
-                            .gap_3()
-                            .child(muted(cx, self.status.clone()).flex_1().min_w_0())
-                            .child(
-                                controls::icon_button(
-                                    "dismiss-notice",
-                                    IconName::Close,
-                                    crate::i18n::tr("关闭"),
-                                    cx,
-                                )
-                                .on_click(cx.listener(
-                                    |this, _, _, cx| {
-                                        this.status.clear();
-                                        cx.notify();
-                                    },
-                                )),
-                            )
-                    }))
                     .child(
                         div()
                             .id("page")
@@ -77,7 +54,39 @@ impl Render for Downloader {
                                 Page::Profiles => self.profile_editor(cx),
                                 Page::Settings => self.software_settings(cx),
                             }),
-                    ),
+                    )
+                    .children(notice.then(|| {
+                        div()
+                            .absolute()
+                            .bottom_4()
+                            .left_5()
+                            .right_5()
+                            .h_flex()
+                            .items_center()
+                            .gap_3()
+                            .px_4()
+                            .py_3()
+                            .rounded_lg()
+                            .border_1()
+                            .border_color(design::border(cx))
+                            .bg(design::surface(cx))
+                            .shadow_lg()
+                            .child(muted(cx, self.status.clone()).flex_1().min_w_0())
+                            .child(
+                                controls::icon_button(
+                                    "dismiss-notice",
+                                    IconName::Close,
+                                    crate::i18n::tr("关闭"),
+                                    cx,
+                                )
+                                .on_click(cx.listener(
+                                    |this, _, _, cx| {
+                                        this.status.clear();
+                                        cx.notify();
+                                    },
+                                )),
+                            )
+                    })),
             )
     }
 }
@@ -127,9 +136,6 @@ impl Downloader {
         ] {
             let selected = self.page == page
                 || (page == Page::New && matches!(self.page, Page::Detail | Page::TaskOptions));
-            if page == Page::Profiles {
-                nav = nav.child(div().h(px(1.)).my_3().mx_2().bg(design::border(cx)));
-            }
             let count = match page {
                 Page::Tasks => {
                     self.running.len()
@@ -195,58 +201,38 @@ impl Downloader {
                     })),
             );
         }
-        let checking = self.tools.busy || self.tools.checking;
-        nav.child(div().flex_1())
-            .child(
-                div()
-                    .id("settings-nav")
-                    .h(px(38.))
-                    .h_flex()
-                    .items_center()
-                    .gap_3()
-                    .px_3()
-                    .rounded_md()
-                    .text_sm()
-                    .cursor_pointer()
-                    .bg(if self.page == Page::Settings {
-                        design::selection(cx)
-                    } else {
-                        design::sidebar(cx)
-                    })
-                    .text_color(if self.page == Page::Settings {
-                        design::accent()
-                    } else {
-                        design::muted(cx)
-                    })
-                    .hover(|s| s.bg(design::selection(cx)))
-                    .child(design::glyph("settings"))
-                    .child(crate::i18n::tr("软件设置"))
-                    .on_click(cx.listener(|this, _, _, cx| {
-                        if this.page == Page::TaskOptions {
-                            this.save_draft_editor(cx);
-                        }
-                        this.page = Page::Settings;
-                        cx.notify();
-                    })),
-            )
-            .child(div().h(px(1.)).my_3().mx_2().bg(design::border(cx)))
-            .child(
-                controls::button("tool-health", "", controls::Tone::Quiet, cx)
-                    .label(crate::i18n::tr(if checking {
-                        "正在检查本地工具…"
-                    } else {
-                        "本地工具"
-                    }))
-                    .tooltip(self.health.clone())
-                    .on_click(cx.listener(|this, _, _, cx| {
-                        if this.page == Page::TaskOptions {
-                            this.save_draft_editor(cx);
-                        }
-                        this.settings_tools_tab = true;
-                        this.page = Page::Settings;
-                        cx.notify();
-                    })),
-            )
+        nav.child(div().flex_1()).child(
+            div()
+                .id("settings-nav")
+                .h(px(38.))
+                .h_flex()
+                .items_center()
+                .gap_3()
+                .px_3()
+                .rounded_md()
+                .text_sm()
+                .cursor_pointer()
+                .bg(if self.page == Page::Settings {
+                    design::selection(cx)
+                } else {
+                    design::sidebar(cx)
+                })
+                .text_color(if self.page == Page::Settings {
+                    design::accent()
+                } else {
+                    design::muted(cx)
+                })
+                .hover(|s| s.bg(design::selection(cx)))
+                .child(design::glyph("settings"))
+                .child(crate::i18n::tr("软件设置"))
+                .on_click(cx.listener(|this, _, _, cx| {
+                    if this.page == Page::TaskOptions {
+                        this.save_draft_editor(cx);
+                    }
+                    this.page = Page::Settings;
+                    cx.notify();
+                })),
+        )
     }
     fn breadcrumbs(&self, title: &'static str, cx: &Context<Self>) -> Div {
         let nested = matches!(self.page, Page::Detail | Page::TaskOptions);

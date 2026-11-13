@@ -11,7 +11,6 @@ use youtube_engine::*;
 use crate::messages::{Update, error_text};
 pub(crate) struct Downloader {
     pub(crate) page: crate::settings::Page,
-    pub(crate) network_options_open: bool,
     pub(crate) settings_tools_tab: bool,
     pub(crate) tool_paths_open: bool,
     pub(crate) appearance: crate::preferences::Appearance,
@@ -150,7 +149,6 @@ impl Downloader {
         Self {
             page: crate::settings::Page::New,
             appearance,
-            network_options_open: false,
             settings_tools_tab: false,
             tool_paths_open: false,
             tools,

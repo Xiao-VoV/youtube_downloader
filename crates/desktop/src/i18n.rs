@@ -132,6 +132,7 @@ const CATALOG: &[(&str, &str)] = &[
     ("使用此版本", "Use this version"),
     ("删除版本", "Delete version"),
     ("已安装，尚未切换", "Installed; not activated"),
+    ("已是最新版本", "Already up to date"),
     ("托管版本已删除", "Managed version deleted"),
     (
         "再次点击重新发现以替换输入框；当前生效工具不变。",

@@ -116,7 +116,7 @@ impl Downloader {
             .child(self.network_controls(cx))
             .child(self.advanced_controls(cx))
             .children((!options).then(|| div().h_flex().flex_wrap().items_center().gap_2()
-                .pt_3().border_t_1().border_color(super::design::border(cx))
+                .pt_3()
                 .child(controls::button("delete-preset", "", Tone::Danger, cx)
                     .label(if self.settings.delete_candidate == self.settings.store.active_preset_id
                         && self.settings.delete_candidate.is_some() { tr("确认删除配置") } else { tr("删除配置") })
@@ -126,11 +126,7 @@ impl Downloader {
                 .child(controls::button("save-preset", tr("另存为配置"), Tone::Secondary, cx)
                     .on_click(cx.listener(|this, _, _, cx| this.save_preset(cx))))
                 .child(controls::button("update-preset", tr("保存修改"), Tone::Primary, cx).disabled(self.settings.store.active_preset_id.is_none())
-                    .on_click(cx.listener(|this, _, _, cx| this.update_preset(cx))))
-                .child(controls::button("use", tr("应用并返回"), Tone::Quiet, cx)
-                    .on_click(cx.listener(|this, _, _, cx| {
-                        this.media = None; this.page = Page::New; cx.notify();
-                    })))));
+                    .on_click(cx.listener(|this, _, _, cx| this.update_preset(cx))))));
         div()
             .h_flex()
             .items_start()
@@ -145,35 +141,20 @@ impl Downloader {
             .child(content)
     }
     fn network_controls(&self, cx: &Context<Self>) -> Div {
-        let mut panel = div().v_flex().gap_2().child(
-            controls::disclosure(
-                "network-toggle",
-                tr("网络与浏览器授权"),
-                self.network_options_open,
-                cx,
-            )
-            .on_click(cx.listener(|this, _, _, cx| {
-                this.network_options_open = !this.network_options_open;
-                cx.notify();
-            })),
-        );
-        if self.network_options_open {
-            panel = panel.child(
-                super::design::group(cx)
-                    .v_flex()
-                    .child(self.cookie_controls(cx))
-                    .child(super::fields::row(
-                        super::help::label(
-                            "代理 URL",
-                            "留空直连；支持 http(s)、socks4/5。含凭据的代理仅本次会话使用。",
-                            "network-options",
-                        ),
-                        controls::input(&self.settings.proxy, cx),
-                        cx,
-                    )),
-            );
-        }
-        panel
+        super::design::section(cx, tr("网络与浏览器授权")).child(
+            super::design::group(cx)
+                .v_flex()
+                .child(self.cookie_controls(cx))
+                .child(super::fields::row(
+                    super::help::label(
+                        "代理 URL",
+                        "留空直连；支持 http(s)、socks4/5。含凭据的代理仅本次会话使用。",
+                        "network-options",
+                    ),
+                    controls::input(&self.settings.proxy, cx),
+                    cx,
+                )),
+        )
     }
     fn advanced_controls(&self, cx: &Context<Self>) -> Div {
         let mut section = div().v_flex().gap_2().child(

@@ -1,5 +1,5 @@
 //! Focused settings pages: appearance first, path editing only on demand.
-use super::{controls, design};
+use super::{controls, design, muted};
 use crate::{app::Downloader, i18n::tr, preferences::Appearance};
 use gpui_kit::{component::*, *};
 
@@ -27,7 +27,13 @@ impl Downloader {
             .mx_auto()
             .child(div().h_flex().justify_end().child(tabs));
         if self.settings_tools_tab {
-            return page.child(self.tool_controls(cx));
+            return page.child(
+                design::group(cx)
+                    .v_flex()
+                    .p_5()
+                    .gap_5()
+                    .child(self.tool_controls(cx)),
+            );
         }
         let mut looks = div().h_flex().gap_3().w_full();
         for (id, label, value) in [
@@ -93,17 +99,16 @@ impl Downloader {
                 .child(controls::inset_row(tr("语言"), languages, cx)),
         )
         .child(
-            div()
+            design::group(cx)
                 .h_flex()
                 .items_center()
                 .gap_3()
-                .px_1()
-                .py_2()
+                .p_4()
                 .child(
                     div()
-                        .w(px(32.))
-                        .h(px(32.))
-                        .rounded(px(9.))
+                        .w(px(36.))
+                        .h(px(36.))
+                        .rounded_lg()
                         .bg(design::selection(cx))
                         .text_color(design::accent())
                         .flex()
@@ -115,13 +120,12 @@ impl Downloader {
                     div()
                         .v_flex()
                         .gap_1()
-                        .child(div().text_xs().font_semibold().child(tr("拾光")))
-                        .child(
-                            div()
-                                .text_size(px(10.))
-                                .text_color(design::muted(cx))
-                                .child(format!("{} {}", tr("版本"), env!("CARGO_PKG_VERSION"))),
-                        ),
+                        .flex_1()
+                        .child(div().text_sm().font_semibold().child(tr("拾光")))
+                        .child(muted(
+                            cx,
+                            format!("{} {}", tr("版本"), env!("CARGO_PKG_VERSION")),
+                        )),
                 ),
         )
     }
