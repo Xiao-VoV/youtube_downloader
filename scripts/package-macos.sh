@@ -58,12 +58,17 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 PLIST
 
 /usr/bin/plutil -lint "$APP/Contents/Info.plist"
-if /usr/bin/hdiutil create -volname "$APP_NAME" -srcfolder "$APP" -ov -format UDZO "$DMG" >/dev/null 2>&1; then
+DMG_STAGE="$OUT/.dmg-stage"
+rm -rf "$DMG_STAGE"
+mkdir -p "$DMG_STAGE"
+cp -R "$APP" "$DMG_STAGE/$APP_NAME.app"
+ln -s /Applications "$DMG_STAGE/Applications"
+if /usr/bin/hdiutil create -volname "$APP_NAME" -srcfolder "$DMG_STAGE" -ov -format UDZO "$DMG" >/dev/null 2>&1; then
   DISTRIBUTION="$DMG"
 else
   ZIP="$OUT/$APP_NAME-$ARCH.zip"
   rm -f "$ZIP"
-  ditto -c -k --sequesterRsrc --keepParent "$APP" "$ZIP"
+  ditto -c -k --sequesterRsrc --keepParent "$DMG_STAGE" "$ZIP"
   DISTRIBUTION="$ZIP"
   echo "hdiutil was unavailable; created ZIP fallback instead." >&2
 fi
@@ -71,3 +76,4 @@ fi
 printf 'Created:\n  %s\n  %s\n' "$APP" "$DISTRIBUTION"
 file "$APP/Contents/MacOS/$APP_NAME"
 shasum -a 256 "$APP/Contents/MacOS/$APP_NAME" "$DISTRIBUTION"
+rm -rf "$DMG_STAGE"
