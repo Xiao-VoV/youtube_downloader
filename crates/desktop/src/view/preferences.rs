@@ -25,7 +25,7 @@ impl Downloader {
             .w_full()
             .max_w(px(900.))
             .mx_auto()
-            .child(div().h_flex().justify_end().child(tabs));
+            .child(div().h_flex().justify_start().child(tabs));
         if self.settings_tools_tab {
             return page.child(
                 design::group(cx)

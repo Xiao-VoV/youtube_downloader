@@ -20,12 +20,7 @@ impl Downloader {
                         .h_flex()
                         .items_center()
                         .gap_2()
-                        .child(
-                            div()
-                                .flex_1()
-                                .min_w_0()
-                                .child(controls::input(&self.url, cx)),
-                        )
+                        .child(controls::input(&self.url, cx).flex_1().min_w_0().h(px(42.)))
                         .child(
                             controls::icon_button(
                                 "draft-paste",
@@ -42,32 +37,32 @@ impl Downloader {
                                     }
                                 },
                             )),
-                        )
-                        .child(
-                            controls::button("add-draft", "", Tone::Primary, cx)
-                                .small()
-                                .bg(design::accent())
-                                .label(crate::i18n::tr("解析链接"))
-                                .on_click(
-                                    cx.listener(|this, _, window, cx| this.add_draft(window, cx)),
-                                ),
                         ),
                 )
                 .child(
                     div()
                         .h_flex()
                         .items_center()
+                        .justify_end()
                         .gap_3()
-                        .child(
-                            muted(cx, crate::i18n::tr("下载配置"))
-                                .w(px(96.))
-                                .flex_shrink_0(),
-                        )
+                        .child(muted(cx, crate::i18n::tr("下载配置")))
                         .child(
                             div().w(px(280.)).min_w_0().child(
                                 Select::new(&self.preset_select)
                                     .small()
                                     .placeholder(crate::i18n::tr("使用下载配置")),
+                            ),
+                        )
+                        .child(
+                            controls::button(
+                                "add-draft",
+                                crate::i18n::tr("解析链接"),
+                                Tone::Primary,
+                                cx,
+                            )
+                            .icon(IconName::Search)
+                            .on_click(
+                                cx.listener(|this, _, window, cx| this.add_draft(window, cx)),
                             ),
                         ),
                 ),

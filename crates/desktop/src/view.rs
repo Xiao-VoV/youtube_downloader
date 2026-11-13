@@ -21,8 +21,14 @@ pub(super) fn muted(cx: &Context<Downloader>, text: impl Into<SharedString>) -> 
         .child(text.into())
 }
 impl Render for Downloader {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let notice = !self.status.is_empty();
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        if let Some(message) = (!self.status.is_empty()).then(|| self.status.clone()) {
+            window.push_notification(
+                gpui_kit::component::notification::Notification::info(message).autohide(true),
+                cx,
+            );
+            self.status.clear();
+        }
         div()
             .size_full()
             .h_flex()
@@ -54,39 +60,7 @@ impl Render for Downloader {
                                 Page::Profiles => self.profile_editor(cx),
                                 Page::Settings => self.software_settings(cx),
                             }),
-                    )
-                    .children(notice.then(|| {
-                        div()
-                            .absolute()
-                            .bottom_4()
-                            .left_5()
-                            .right_5()
-                            .h_flex()
-                            .items_center()
-                            .gap_3()
-                            .px_4()
-                            .py_3()
-                            .rounded_lg()
-                            .border_1()
-                            .border_color(design::border(cx))
-                            .bg(design::surface(cx))
-                            .shadow_lg()
-                            .child(muted(cx, self.status.clone()).flex_1().min_w_0())
-                            .child(
-                                controls::icon_button(
-                                    "dismiss-notice",
-                                    IconName::Close,
-                                    crate::i18n::tr("关闭"),
-                                    cx,
-                                )
-                                .on_click(cx.listener(
-                                    |this, _, _, cx| {
-                                        this.status.clear();
-                                        cx.notify();
-                                    },
-                                )),
-                            )
-                    })),
+                    ),
             )
     }
 }
