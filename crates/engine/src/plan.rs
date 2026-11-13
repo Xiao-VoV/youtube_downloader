@@ -49,9 +49,7 @@ impl CommandPlan {
     pub(crate) fn command(&self) -> Command {
         let mut cmd = Command::new(&self.executable);
         cmd.env_clear();
-        if let Some(path) = std::env::var_os("PATH") {
-            cmd.env("PATH", path);
-        }
+        cmd.env("PATH", crate::tools::subprocess_path());
         cmd.env("LANG", "C.UTF-8")
             .env("LC_ALL", "C.UTF-8")
             .args(&self.argv);

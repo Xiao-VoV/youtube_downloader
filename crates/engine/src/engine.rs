@@ -28,26 +28,34 @@ impl Engine {
             true,
             |_| Ok(()),
         )?;
-        let value: serde_json::Value = serde_json::from_slice(&output.stdout)
-            .map_err(|_| EngineError::new(ErrorKind::Protocol, "invalid metadata JSON"))?;
+        let value: serde_json::Value = serde_json::from_slice(&output.stdout).map_err(|error| {
+            output.with_diagnostics(EngineError::new(
+                ErrorKind::Protocol,
+                format!("invalid metadata JSON: {error}"),
+            ))
+        })?;
         if value.get("entries").is_some()
             || value
                 .get("_type")
                 .and_then(|v| v.as_str())
                 .is_some_and(|v| matches!(v, "playlist" | "multi_video"))
         {
-            return Err(EngineError::new(
+            return Err(output.with_diagnostics(EngineError::new(
                 ErrorKind::Protocol,
                 "playlist metadata is not accepted",
-            ));
+            )));
         }
-        let info: MediaInfo = serde_json::from_value(value)
-            .map_err(|_| EngineError::new(ErrorKind::Protocol, "invalid media metadata fields"))?;
+        let info: MediaInfo = serde_json::from_value(value).map_err(|error| {
+            output.with_diagnostics(EngineError::new(
+                ErrorKind::Protocol,
+                format!("invalid media metadata fields: {error}"),
+            ))
+        })?;
         if info.id.is_empty() || info.title.is_empty() {
-            return Err(EngineError::new(
+            return Err(output.with_diagnostics(EngineError::new(
                 ErrorKind::Protocol,
                 "missing video identity or title",
-            ));
+            )));
         }
         Ok(info)
     }

@@ -147,14 +147,43 @@ fn success_without_artifact_and_nonzero_fail_closed() {
             .kind,
         ErrorKind::MissingArtifact
     );
-    let engine = f.engine("exit 7");
-    assert_eq!(
-        engine
-            .probe(&f.request().url, &CancelToken::new())
-            .unwrap_err()
-            .kind,
-        ErrorKind::ProcessFailed
-    );
+    let engine = f.engine("printf 'parser failed: bad input\\n' >&2; exit 7");
+    let error = engine
+        .probe(&f.request().url, &CancelToken::new())
+        .unwrap_err();
+    assert_eq!(error.kind, ErrorKind::ProcessFailed);
+    assert!(error.message.contains("parser failed: bad input"));
+}
+#[test]
+fn malformed_metadata_keeps_parser_reason_and_stderr() {
+    let f = Fixture::new();
+    let engine = f.engine("printf 'metadata warning' >&2; printf 'not json'");
+    let error = engine.probe(&f.request().url, &CancelToken::new()).unwrap_err();
+    assert_eq!(error.kind, ErrorKind::Protocol);
+    assert!(error.message.contains("invalid metadata JSON:"));
+    assert!(error.message.contains("line 1"));
+    assert!(error.message.contains("metadata warning"));
+}
+#[test]
+fn failed_process_reports_bounded_stderr_and_truncation() {
+    let f = Fixture::new();
+    let mut engine = f.engine("printf 'abcdefghijklmnop' >&2; exit 1");
+    engine.config.max_stderr_bytes = 8;
+    let error = engine.probe(&f.request().url, &CancelToken::new()).unwrap_err();
+    assert_eq!(error.kind, ErrorKind::ProcessFailed);
+    assert!(error.message.contains("abcdefgh"));
+    assert!(!error.message.contains("ijklmnop"));
+    assert!(error.message.contains("stderr truncated"));
+}
+#[test]
+fn spawn_failure_reports_executable_and_os_reason() {
+    let f = Fixture::new();
+    let engine = f.engine("exit 0");
+    fs::write(&engine.tools.yt_dlp, "#!/missing/ytder-interpreter\n").unwrap();
+    let error = engine.probe(&f.request().url, &CancelToken::new()).unwrap_err();
+    assert_eq!(error.kind, ErrorKind::Spawn);
+    assert!(error.message.contains("fake-yt-dlp"));
+    assert!(error.message.contains("os error"));
 }
 #[test]
 fn artifact_outside_attempt_is_rejected() {

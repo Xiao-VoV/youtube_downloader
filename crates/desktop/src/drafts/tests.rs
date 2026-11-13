@@ -147,6 +147,35 @@ fn recovery_interrupts_probing_but_keeps_queued_without_running() {
     assert_eq!(DraftStore::load_at(f.path()).entries.len(), 1);
 }
 #[test]
+fn error_preview_is_bounded_without_breaking_unicode() {
+    let error = "错误🙂".repeat(500);
+    let preview = error_preview(&error);
+    assert!(preview.ends_with('…'));
+    assert!(preview.chars().count() <= 1201);
+    assert!(preview.contains("🙂"));
+}
+#[test]
+fn probe_diagnostic_is_available_in_memory_but_snapshot_is_safe() {
+    let f = Fixture::new();
+    let mut store = DraftStore::load_at(f.path());
+    let mut d = draft("diagnostic");
+    d.state = DraftState::Probing;
+    store.upsert(d).unwrap();
+    store
+        .apply_probe(
+            "diagnostic",
+            Err(youtube_engine::EngineError::new(
+                ErrorKind::Protocol,
+                "invalid JSON\\nstderr: token=secret",
+            )),
+        )
+        .unwrap();
+    assert!(store.entries[0].error.as_ref().unwrap().contains("secret"));
+    let persisted = String::from_utf8(fs::read(f.path()).unwrap()).unwrap();
+    assert!(persisted.contains("Probe failed"));
+    assert!(!persisted.contains("secret"));
+}
+#[test]
 fn only_access_configuration_requires_new_probe() {
     let before = DownloadProfile::default();
     let mut after = before.clone();

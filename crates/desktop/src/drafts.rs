@@ -24,7 +24,7 @@ pub struct Draft {
     pub profile: DownloadProfile,
     pub media: Option<MediaInfo>,
     pub state: DraftState,
-    /// Persisted errors are generic state summaries, never raw tool messages.
+    /// Full diagnostic in this session; disk snapshots contain generic summaries only.
     pub error: Option<String>,
 }
 pub struct DraftStore {
@@ -79,9 +79,11 @@ impl DraftStore {
         store
     }
     pub fn upsert(&mut self, mut draft: Draft) -> Result<(), String> {
-        // Caller strings may contain stderr or credentials; never serialize them.
-        draft.error = safe_error(draft.state, draft.error.is_some());
-        storage::validate(&draft)?;
+        // Retain diagnostics for display/copy, but validate only the safe snapshot.
+        if safe_error(draft.state, true).is_none() {
+            draft.error = None;
+        }
+        storage::validate(&persisted_draft(&draft))?;
         let mut entries = self.entries.clone();
         if let Some(old) = entries.iter_mut().find(|d| d.id == draft.id) {
             *old = draft;
@@ -127,7 +129,10 @@ impl DraftStore {
                 } else {
                     DraftState::Failed
                 };
-                draft.error = safe_error(draft.state, true);
+                draft.error = Some(format!(
+                    "{}\n{error}",
+                    safe_error(draft.state, true).unwrap_or_default()
+                ));
             }
         }
         self.upsert(draft)
@@ -139,7 +144,11 @@ impl DraftStore {
                 .clone()
                 .unwrap_or_else(|| "Draft writes blocked".into()));
         }
-        storage::save(self.path.as_ref().ok_or("Draft path unavailable")?, entries)
+        let snapshot: Vec<_> = entries.iter().map(persisted_draft).collect();
+        storage::save(
+            self.path.as_ref().ok_or("Draft path unavailable")?,
+            &snapshot,
+        )
     }
     fn commit(&mut self, entries: Vec<Draft>) -> Result<(), String> {
         if let Err(error) = self.persist(&entries) {
@@ -155,12 +164,33 @@ fn safe_error(state: DraftState, present: bool) -> Option<String> {
     if !present {
         return None;
     }
-    match state {
-        DraftState::Failed => Some("Probe failed".into()),
-        DraftState::Cancelled => Some("Probe cancelled".into()),
-        DraftState::Interrupted => Some("Probe interrupted".into()),
-        _ => None,
+    Some(match state {
+        DraftState::Failed => "Probe failed".into(),
+        DraftState::Cancelled => "Probe cancelled".into(),
+        DraftState::Interrupted => "Probe interrupted".into(),
+        _ => return None,
+    })
+}
+fn persisted_draft(draft: &Draft) -> Draft {
+    let mut snapshot = draft.clone();
+    // Tool messages may contain credentials; never write them to drafts.json.
+    snapshot.error = safe_error(snapshot.state, snapshot.error.is_some());
+    snapshot
+}
+
+/// Bound only the on-screen preview, never the diagnostic copied by the user.
+/// Character iteration avoids slicing inside UTF-8 and normalizes terminal controls.
+pub fn error_preview(error: &str) -> String {
+    let mut chars = error.chars();
+    let mut preview: String = chars
+        .by_ref()
+        .take(1200)
+        .map(|c| if c.is_control() { ' ' } else { c })
+        .collect();
+    if chars.next().is_some() {
+        preview.push('…');
     }
+    preview
 }
 /// Access-affecting options invalidate extracted metadata; output selection,
 /// naming, quality and format only change the subsequent download plan.

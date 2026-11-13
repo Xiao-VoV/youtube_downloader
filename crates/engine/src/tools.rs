@@ -23,9 +23,7 @@ impl Engine {
                     health.path = path.clone();
                     let mut cmd = Command::new(path);
                     cmd.env_clear();
-                    if let Some(path) = std::env::var_os("PATH") {
-                        cmd.env("PATH", path);
-                    }
+                    cmd.env("PATH", subprocess_path());
                     if yt_dlp {
                         cmd.args([
                             "--ignore-config",
@@ -81,12 +79,49 @@ impl Engine {
         }
     }
 }
-/// Explicit paths or executable names in PATH, resolved to absolute paths.
+/// Finder does not inherit a terminal's PATH. Append conventional macOS tool
+/// locations without running shell startup scripts or mutating process globals.
+/// Explicit selections and inherited PATH entries retain priority.
+fn search_directories(path: Option<OsString>, home: Option<PathBuf>, macos: bool) -> Vec<PathBuf> {
+    let mut dirs: Vec<PathBuf> = path
+        .as_deref()
+        .map(std::env::split_paths)
+        .into_iter()
+        .flatten()
+        .filter(|p| p.is_absolute())
+        .collect();
+    if macos {
+        let mut fallbacks = vec![
+            PathBuf::from("/opt/homebrew/bin"),
+            PathBuf::from("/usr/local/bin"),
+        ];
+        if let Some(home) = home.filter(|p| p.is_absolute()) {
+            fallbacks.extend([home.join(".local/bin"), home.join(".deno/bin")]);
+        }
+        fallbacks.extend(["/usr/bin", "/bin", "/usr/sbin", "/sbin"].map(PathBuf::from));
+        for dir in fallbacks {
+            if !dirs.contains(&dir) {
+                dirs.push(dir);
+            }
+        }
+    }
+    dirs
+}
+pub(crate) fn subprocess_path() -> OsString {
+    let dirs = search_directories(
+        std::env::var_os("PATH"),
+        std::env::var_os("HOME").map(PathBuf::from),
+        cfg!(target_os = "macos"),
+    );
+    std::env::join_paths(dirs).unwrap_or_default()
+}
+
+/// Explicit paths or executable names in the effective search path, resolved to absolute paths.
 pub fn resolve_tool(path: &Path) -> Result<PathBuf> {
     let candidates = if path.components().count() > 1 || path.is_absolute() {
         vec![path.to_owned()]
     } else {
-        std::env::split_paths(&std::env::var_os("PATH").unwrap_or_else(OsString::new))
+        std::env::split_paths(&subprocess_path())
             .map(|p| p.join(path))
             .collect()
     };
@@ -109,9 +144,74 @@ pub fn resolve_tool(path: &Path) -> Result<PathBuf> {
     }
     Err(EngineError::new(
         ErrorKind::ToolNotFound,
-        "selected executable not found or not executable",
+        format!(
+            "selected executable not found or not executable: {}",
+            path.display()
+        ),
     ))
 }
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn finder_path_includes_homebrew_and_user_tools() {
+        let dirs = search_directories(
+            Some("/usr/bin:/bin:/usr/sbin:/sbin".into()),
+            Some("/Users/test".into()),
+            true,
+        );
+        assert_eq!(dirs[0], Path::new("/usr/bin"));
+        for dir in [
+            "/opt/homebrew/bin",
+            "/usr/local/bin",
+            "/Users/test/.local/bin",
+            "/Users/test/.deno/bin",
+        ] {
+            assert!(dirs.contains(&PathBuf::from(dir)), "missing {dir}");
+        }
+    }
+
+    #[test]
+    fn terminal_path_priority_and_dedup_are_preserved() {
+        let dirs = search_directories(
+            Some("/custom/bin:/opt/homebrew/bin:/usr/bin".into()),
+            None,
+            true,
+        );
+        assert_eq!(dirs[0], Path::new("/custom/bin"));
+        assert_eq!(
+            dirs.iter()
+                .filter(|p| **p == Path::new("/opt/homebrew/bin"))
+                .count(),
+            1
+        );
+    }
+
+    #[test]
+    fn missing_path_is_safe_and_relative_entries_are_not_searched() {
+        assert!(search_directories(None, None, true).contains(&PathBuf::from("/opt/homebrew/bin")));
+        assert_eq!(
+            search_directories(Some(":.:relative:/usr/bin".into()), None, false),
+            vec![PathBuf::from("/usr/bin")]
+        );
+    }
+
+    #[test]
+    fn child_process_uses_the_same_search_path() {
+        let plan = crate::CommandPlan {
+            executable: "/unused".into(),
+            argv: vec![],
+        };
+        let command = plan.command();
+        assert!(
+            command
+                .get_envs()
+                .any(|(key, value)| key == "PATH" && value == Some(subprocess_path().as_os_str()))
+        );
+    }
+}
+
 impl ToolPaths {
     pub fn discover() -> Result<Self> {
         Ok(Self {
