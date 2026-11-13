@@ -95,12 +95,7 @@ impl Downloader {
                             .justify_center()
                             .child(design::glyph("arrow-down-to-line")),
                     )
-                    .child(
-                        div()
-                            .text_lg()
-                            .font_semibold()
-                            .child(crate::i18n::tr("拾光")),
-                    ),
+                    .child(div().text_lg().font_semibold().child("YTDer")),
             );
         for (id, label, icon, page) in [
             ("new", "新建下载", "plus", Page::New),

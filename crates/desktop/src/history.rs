@@ -224,17 +224,10 @@ pub(super) fn validate_entry(entry: &HistoryEntry) -> Result<(), String> {
     {
         return Err("Invalid history entry limits".into());
     }
-    if youtube_engine::normalize_url(&entry.url).ok().as_deref() != Some(entry.url.as_str()) {
-        return Err("History requires canonical video URL".into());
-    }
+    youtube_engine::normalize_url(&entry.url).map_err(|_| "Invalid history URL")?;
     let m = &entry.metadata;
-    if !m.original_url.is_empty()
-        && youtube_engine::normalize_url(&m.original_url)
-            .ok()
-            .as_deref()
-            != Some(entry.url.as_str())
-    {
-        return Err("Invalid original media URL".into());
+    if !m.original_url.is_empty() {
+        youtube_engine::normalize_url(&m.original_url).map_err(|_| "Invalid original media URL")?;
     }
     if m.duration.is_some_and(|v| !v.is_finite() || v < 0.0)
         || m.output_dir.as_ref().is_some_and(|p| !p.is_absolute())

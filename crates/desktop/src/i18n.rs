@@ -45,7 +45,7 @@ const CATALOG: &[(&str, &str)] = &[
     ("检查更新", "Check for updates"),
     ("已加入下载队列", "Added to download queue"),
     ("粘贴 YouTube 视频链接", "Paste a YouTube video link"),
-    ("拾光", "Shiguang"),
+    ("YTDer", "YTDer"),
     ("本地工具", "Local tools"),
     ("待确认的下载", "Pending review"),
     ("重新解析", "Analyze again"),
@@ -324,7 +324,7 @@ const CATALOG: &[(&str, &str)] = &[
     ),
     ("取消", "Cancel"),
     ("正在停止…", "Stopping…"),
-    ("SHIGUANG / 新建任务", "SHIGUANG / NEW DOWNLOAD"),
+    ("YTDER / 新建任务", "YTDER / NEW DOWNLOAD"),
     ("值得收藏，一键留下。", "Worth keeping. One click away."),
     (
         "粘贴视频链接，选择你的下载方式。",

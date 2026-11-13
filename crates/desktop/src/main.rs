@@ -48,6 +48,13 @@ fn main() {
                     let weak = view.downgrade();
                     window.on_window_should_close(cx, move |_, cx| {
                         weak.update(cx, |this, cx| {
+                            if this.shutting_down
+                                && !this.busy
+                                && this.probe_job.is_none()
+                                && this.running.is_empty()
+                            {
+                                return true;
+                            }
                             if this.busy || this.probe_job.is_some() || !this.running.is_empty() {
                                 this.shutting_down = true;
                                 if let Some((_, cancel)) = &this.probe_job {

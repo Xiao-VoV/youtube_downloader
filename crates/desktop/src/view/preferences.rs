@@ -121,7 +121,7 @@ impl Downloader {
                         .v_flex()
                         .gap_1()
                         .flex_1()
-                        .child(div().text_sm().font_semibold().child(tr("拾光")))
+                        .child(div().text_sm().font_semibold().child("YTDer"))
                         .child(muted(
                             cx,
                             format!("{} {}", tr("版本"), env!("CARGO_PKG_VERSION")),

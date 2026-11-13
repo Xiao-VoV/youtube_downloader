@@ -1,6 +1,6 @@
 <div align="center">
 
-# Shiguang · 拾光
+# YTDer
 
 **Start with a link. Keep what matters.**
 
@@ -19,15 +19,15 @@ Video inspection, reusable preferences, and command review—in one local deskto
 </div>
 
 <p align="center">
-  <img src="docs/images/preferences.png" alt="Shiguang native macOS preview: download preferences, formats, browser cookies, and proxy options" width="880" />
+  <img src="docs/images/preferences.png" alt="YTDer native macOS preview: download preferences, formats, browser cookies, and proxy options" width="880" />
 </p>
 
 > [!IMPORTANT]
 > **Developer preview, not a stable release.** The current focus is running from source on macOS. Real-site downloads and the complete native interaction flow have not completed acceptance testing. Parallel tasks and history are being integrated and are not advertised as verified features. Screenshots show existing native windows, may differ from ongoing development, and do not demonstrate a successful download.
 
-## Why Shiguang?
+## Why YTDer?
 
-Powerful command-line tools deserve a more approachable everyday workflow. Shiguang brings common [yt-dlp](https://github.com/yt-dlp/yt-dlp) choices into a desktop interface without hiding what is about to run.
+Powerful command-line tools deserve a more approachable everyday workflow. YTDer brings common [yt-dlp](https://github.com/yt-dlp/yt-dlp) choices into a desktop interface without hiding what is about to run.
 
 - **Focus on the content.** Choose format, resolution, and destination without rebuilding a command every time.
 - **Review before you run.** Inspect the video, check a structured summary, and review a redacted command before confirming.
@@ -65,11 +65,11 @@ Powerful command-line tools deserve a more approachable everyday workflow. Shigu
 
 ### Tasks · A clear starting point
 
-![Shiguang native tasks page with a new-download entry and empty state](<docs/images/tasks.png>)
+![YTDer native tasks page with a new-download entry and empty state](<docs/images/tasks.png>)
 
 ### Preferences · Make your defaults reusable
 
-![Shiguang native preferences with quality, formats, cookies, proxy, and advanced options](<docs/images/preferences.png>)
+![YTDer native preferences with quality, formats, cookies, proxy, and advanced options](<docs/images/preferences.png>)
 
 *Real macOS developer-preview screenshots. The interface is currently primarily Chinese; bilingual documentation does not imply an English UI is available. The preferences capture predates later additions such as “best available” and the specific browser-profile input.*
 
@@ -183,14 +183,14 @@ MP4 still requires H.264 / AAC. Higher resolutions may not exist with those code
 Site policies, yt-dlp versions, authentication, and locally available challenge components all matter. Remote component downloads are disabled; healthy tools do not prove site availability.
 
 **Why can't I paste arbitrary CLI options?**<br>
-Shiguang is not an unrestricted yt-dlp CLI editor. Use allowlisted options with one argv token per line: for example, `--limit-rate` and `2M` on separate lines.
+YTDer is not an unrestricted yt-dlp CLI editor. Use allowlisted options with one argv token per line: for example, `--limit-rate` and `2M` on separate lines.
 
 **Where are profiles stored?**<br>
-On macOS: `~/Library/Application Support/Shiguang/profiles.json`. A browser profile can be `Default`, `Profile 1`, or a Firefox profile directory. Leave it blank for yt-dlp's default selection. Compound `:`, `+`, and `#` syntax is rejected.
+On macOS: `~/Library/Application Support/YTDer/profiles.json`. A browser profile can be `Default`, `Profile 1`, or a Firefox profile directory. Leave it blank for yt-dlp's default selection. Compound `:`, `+`, and `#` syntax is rejected.
 
 ## Contributing
 
-Help make Shiguang a more reliable, approachable native tool:
+Help make YTDer a more reliable, approachable native tool:
 
 - **Report bugs:** include macOS version, commit, tool versions, reproduction steps, and redacted logs.
 - **Improve the experience:** suggest workflow, accessibility, wording, and interface improvements.
