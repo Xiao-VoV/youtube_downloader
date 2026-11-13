@@ -28,12 +28,23 @@ YTDer.app/
 6. **公证与 Staple**：提交 Apple notarization，验证 Gatekeeper、隔离属性和另一台干净 macOS 的首次启动。
 7. **分发产物**：优先提供 `.dmg` 或压缩 `.app`，同时发布 SHA-256 和版本说明。
 
-## 本轮明确不做
+## 自用未签名方案
 
-- 不创建 `.app`；
-- 不新增打包脚本、签名配置或证书引用；
-- 不下载工具链、安装器或真实媒体；
-- 不声称当前 Release 已具备 Finder 双击启动体验。
+当前自用版本使用一个本地脚本生成 `YTDer.app`，并尝试生成 DMG；在镜像工具不可用的环境中生成 ZIP 作为分发容器。产物仅用于本机使用，不包含签名、公证或自动更新。
+
+- Bundle ID：`com.xiaovov.ytder`
+- 架构：当前机器的 `arm64`
+- 最低系统版本：macOS 15.0
+- 外部工具仍由用户配置，不打包 Cookie 或用户数据
+
+## 后续正式发行
+
+- Developer ID 签名；
+- Hardened Runtime 与权限审查；
+- Apple 公证与 Staple；
+- Universal 2 架构；
+- DMG 设计和 Release 校验。
+
 
 ## 需要用户确认的决策
 
