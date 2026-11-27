@@ -106,17 +106,10 @@ impl Downloader {
             }
         });
         use gpui_kit::component::select::{SearchableVec, SelectEvent, SelectState};
-        let names = settings
-            .store
-            .presets
-            .iter()
-            .map(|p| crate::preset_option::PresetOption {
-                id: p.id.clone(),
-                name: p.name.clone(),
-            })
-            .collect::<Vec<_>>();
+        let presets = crate::preset_option::items(&settings.store);
+        let active = crate::preset_option::selected_index(&settings.store);
         let preset_select = cx.new(|cx| {
-            SelectState::new(SearchableVec::new(names), None, window, cx).searchable(true)
+            SelectState::new(SearchableVec::new(presets), active, window, cx).searchable(true)
         });
         let preset_sub = cx.subscribe_in(
             &preset_select,
@@ -126,22 +119,8 @@ impl Downloader {
              event: &SelectEvent<SearchableVec<crate::preset_option::PresetOption>>,
              window,
              cx| {
-                if let SelectEvent::Confirm(Some(name)) = event {
-                    if let Some(p) = this
-                        .settings
-                        .store
-                        .presets
-                        .iter()
-                        .find(|p| p.id == *name)
-                        .cloned()
-                    {
-                        this.settings.profile = p.profile.clone();
-                        this.mode = p.profile.mode;
-                        this.output = p.profile.output_dir.clone();
-                        this.settings.store.active_preset_id = Some(p.id);
-                    }
-                    cx.notify();
-                    let _ = window;
+                if let SelectEvent::Confirm(Some(id)) = event {
+                    this.activate_preset(id, window, cx);
                 }
             },
         );

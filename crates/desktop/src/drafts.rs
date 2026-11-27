@@ -4,7 +4,7 @@ mod storage;
 mod tests;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use youtube_engine::{DownloadProfile, ErrorKind, MediaInfo};
+use youtube_engine::{DownloadProfile, DownloadRequest, ErrorKind, MediaInfo};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DraftState {
@@ -24,8 +24,38 @@ pub struct Draft {
     pub profile: DownloadProfile,
     pub media: Option<MediaInfo>,
     pub state: DraftState,
+    /// Old drafts remain review-first. Recovery never starts a download on load.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub direct_download: bool,
     /// Full diagnostic in this session; disk snapshots contain generic summaries only.
     pub error: Option<String>,
+}
+impl Draft {
+    pub(crate) fn download_request(&self) -> Option<DownloadRequest> {
+        Some(DownloadRequest {
+            url: self.url.clone(),
+            mode: self.profile.mode,
+            output_dir: self.profile.output_dir.clone()?,
+            format_id: None,
+            task_id: self.id.clone(),
+            attempt_id: format!(
+                "{}-{}",
+                self.id,
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_nanos()
+            ),
+        })
+    }
+
+    pub(crate) fn can_auto_queue(&self, selected: bool, shutting_down: bool) -> bool {
+        self.direct_download
+            && self.state == DraftState::Ready
+            && self.media.is_some()
+            && !selected
+            && !shutting_down
+    }
 }
 pub struct DraftStore {
     pub entries: Vec<Draft>,
@@ -64,7 +94,9 @@ impl DraftStore {
         }
         let mut changed = false;
         for draft in &mut store.entries {
-            if draft.state == DraftState::Probing {
+            if draft.state == DraftState::Probing
+                || (draft.state == DraftState::Waiting && draft.direct_download)
+            {
                 draft.state = DraftState::Interrupted;
                 draft.error = Some("Probe interrupted".into());
                 changed = true;

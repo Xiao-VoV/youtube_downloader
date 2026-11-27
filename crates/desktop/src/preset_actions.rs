@@ -1,9 +1,72 @@
-//! Preset mutations commit storage before replacing UI state.
-use crate::app::Downloader;
-use crate::i18n::tr;
-use gpui_kit::*;
+//! Preset mutations and shared preset activation for both selectors.
+use crate::{app::Downloader, i18n::tr, preset_option, settings};
+use gpui_kit::{component::select::SearchableVec, *};
 use youtube_engine::Preset;
 impl Downloader {
+    pub(crate) fn refresh_preset_select(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let presets = preset_option::items(&self.settings.store);
+        let active = self.settings.store.active_preset_id.as_ref();
+        self.preset_select.update(cx, |select, cx| {
+            select.set_items(SearchableVec::new(presets), window, cx);
+            if let Some(id) = active {
+                select.set_selected_value(id, window, cx);
+            } else {
+                select.set_selected_index(None, window, cx);
+            }
+        });
+    }
+
+    pub(crate) fn activate_preset(
+        &mut self,
+        id: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some((preset, saved)) =
+            settings::select_preset(&mut self.settings.store, id, settings::save)
+        else {
+            return;
+        };
+        self.status = match saved {
+            Ok(()) => format!("{}: {}", tr("已切换"), preset.name),
+            Err(error) => format!("{}: {error}", tr("配置已用于本次会话，但无法保存选择")),
+        };
+        let profile = preset.profile;
+        self.mode = profile.mode;
+        self.output = profile.output_dir.clone();
+        self.settings
+            .name
+            .update(cx, |s, cx| s.set_value(preset.name, window, cx));
+        self.settings.proxy.update(cx, |s, cx| {
+            s.set_value(profile.proxy.as_deref().unwrap_or_default(), window, cx)
+        });
+        self.settings.browser_profile.update(cx, |s, cx| {
+            s.set_value(
+                profile.browser_profile.as_deref().unwrap_or_default(),
+                window,
+                cx,
+            )
+        });
+        self.settings.filename_template.update(cx, |s, cx| {
+            s.set_value(profile.filename_template.as_str(), window, cx)
+        });
+        self.settings.folder_template.update(cx, |s, cx| {
+            s.set_value(
+                profile.folder_template.as_deref().unwrap_or_default(),
+                window,
+                cx,
+            )
+        });
+        self.settings.extra.update(cx, |s, cx| {
+            s.set_value(profile.extra_args.join("\n"), window, cx)
+        });
+        self.settings.profile = profile;
+        self.settings.delete_candidate = None;
+        self.media = None;
+        self.pending = None;
+        cx.notify();
+    }
+
     pub(crate) fn update_preset(&mut self, cx: &mut Context<Self>) {
         let mut store = self.settings.store.clone();
         let Some(entry) = store

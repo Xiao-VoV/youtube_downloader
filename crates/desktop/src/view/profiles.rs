@@ -42,49 +42,8 @@ impl Downloader {
                     )
                     .disabled(self.busy)
                     .on_click(cx.listener(move |this, _, window, cx| {
-                        this.mode = preset.profile.mode;
-                        this.settings.profile = preset.profile.clone();
-                        this.output = preset.profile.output_dir.clone();
-                        this.settings.store.active_preset_id = Some(preset.id.clone());
-                        this.status = match crate::settings::save(&this.settings.store) {
-                            Ok(()) => format!("{}: {}", tr("已切换"), preset.name),
-                            Err(error) => {
-                                format!("{}: {error}", tr("配置已用于本次会话，但无法保存选择"))
-                            }
-                        };
-                        this.settings
-                            .name
-                            .update(cx, |s, cx| s.set_value(preset.name.clone(), window, cx));
-                        this.settings.proxy.update(cx, |s, cx| {
-                            s.set_value(
-                                preset.profile.proxy.clone().unwrap_or_default(),
-                                window,
-                                cx,
-                            )
-                        });
-                        this.settings.browser_profile.update(cx, |s, cx| {
-                            s.set_value(
-                                preset.profile.browser_profile.clone().unwrap_or_default(),
-                                window,
-                                cx,
-                            )
-                        });
-                        this.settings.filename_template.update(cx, |s, cx| {
-                            s.set_value(preset.profile.filename_template.clone(), window, cx)
-                        });
-                        this.settings.folder_template.update(cx, |s, cx| {
-                            s.set_value(
-                                preset.profile.folder_template.clone().unwrap_or_default(),
-                                window,
-                                cx,
-                            )
-                        });
-                        this.settings.extra.update(cx, |s, cx| {
-                            s.set_value(preset.profile.extra_args.join("\n"), window, cx)
-                        });
-                        this.media = None;
-                        this.pending = None;
-                        cx.notify();
+                        this.activate_preset(&preset.id, window, cx);
+                        this.refresh_preset_select(window, cx);
                     })),
             );
         }

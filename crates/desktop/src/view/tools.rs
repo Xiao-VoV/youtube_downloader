@@ -261,7 +261,8 @@ impl Downloader {
                 .effective
                 .as_ref()
                 .is_some_and(|p| p.yt_dlp == version.path);
-            let protected = self.running.values().any(|t| t.tool_path == version.path);
+            let deletion_block = self.managed_removal_block(version);
+            let deletion_disabled = self.tools.busy || deletion_block.is_some();
             let activate_path = version.path.clone();
             let activate = version.version.clone();
             let remove = activate.clone();
@@ -314,6 +315,11 @@ impl Downloader {
                                     )
                                     .children(
                                         selected.then(|| controls::badge(tr("使用中"), true, cx)),
+                                    )
+                                    .children(
+                                        (version.active && !selected).then(|| {
+                                            controls::badge(tr("托管活动版本"), false, cx)
+                                        }),
                                     ),
                             )
                             .child(
@@ -353,12 +359,10 @@ impl Downloader {
                         controls::icon_button(
                             ("delete-version", index),
                             IconName::Delete,
-                            tr("删除版本"),
+                            deletion_block.unwrap_or_else(|| tr("删除版本")),
                             cx,
                         )
-                        .disabled(
-                            self.tools.busy || self.busy || selected || version.active || protected,
-                        )
+                        .disabled(deletion_disabled)
                         .on_click(cx.listener(move |this, _, _, cx| {
                             this.manage_tools(Operation::Remove(remove.clone()), cx)
                         })),

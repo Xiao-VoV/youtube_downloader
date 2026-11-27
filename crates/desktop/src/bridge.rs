@@ -61,6 +61,7 @@ impl Downloader {
                     self.tools.checking = false;
                 } else {
                     self.tools.busy = false;
+                    self.tools.removing = false;
                 }
                 match result {
                     Ok(out) => {
@@ -98,8 +99,11 @@ impl Downloader {
                     .iter()
                     .any(|d| d.id == id && d.state == crate::drafts::DraftState::Probing)
                 {
-                    if let Err(error) = self.drafts.apply_probe(&id, result) {
-                        self.status = error;
+                    let succeeded = result.is_ok();
+                    match self.drafts.apply_probe(&id, result) {
+                        Ok(()) if succeeded => self.queue_direct_download(&id),
+                        Ok(()) => {}
+                        Err(error) => self.status = error,
                     }
                     if self.selected_draft.as_deref() == Some(id.as_str()) {
                         self.media = self

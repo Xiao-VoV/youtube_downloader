@@ -70,6 +70,7 @@ fn draft(id: &str) -> Draft {
         profile: DownloadProfile::default(),
         media: None,
         state: DraftState::Waiting,
+        direct_download: false,
         error: None,
     }
 }
@@ -146,6 +147,57 @@ fn recovery_interrupts_probing_but_keeps_queued_without_running() {
     recovered.remove("a").unwrap();
     assert_eq!(DraftStore::load_at(f.path()).entries.len(), 1);
 }
+#[test]
+fn direct_intent_survives_storage_but_recovery_requires_explicit_retry() {
+    let f = Fixture::new();
+    let mut store = DraftStore::load_at(f.path());
+    let mut quick = draft("quick");
+    quick.direct_download = true;
+    store.upsert(quick).unwrap();
+    store.upsert(draft("legacy")).unwrap();
+    let recovered = DraftStore::load_at(f.path());
+    assert!(recovered.entries[0].direct_download);
+    assert_eq!(recovered.entries[0].state, DraftState::Interrupted);
+    assert!(!recovered.entries[1].direct_download);
+    assert_eq!(recovered.entries[1].state, DraftState::Waiting);
+}
+
+#[test]
+fn direct_download_requires_successful_probe_and_no_review_or_shutdown() {
+    let f = Fixture::new();
+    let mut store = DraftStore::load_at(f.path());
+    let mut quick = draft("quick");
+    quick.direct_download = true;
+    quick.state = DraftState::Probing;
+    quick.profile.output_dir = Some(f.path().join("downloads"));
+    assert!(!quick.can_auto_queue(false, false));
+    store.upsert(quick).unwrap();
+    store
+        .apply_probe(
+            "quick",
+            Ok(MediaInfo {
+                id: "video".into(),
+                title: "Title".into(),
+                ..Default::default()
+            }),
+        )
+        .unwrap();
+    let quick = &store.entries[0];
+    assert!(quick.can_auto_queue(false, false));
+    assert!(!quick.can_auto_queue(true, false));
+    assert!(!quick.can_auto_queue(false, true));
+    let request = quick.download_request().unwrap();
+    assert_eq!(request.task_id, quick.id);
+    assert_eq!(request.url, quick.url);
+    assert_eq!(Some(request.output_dir), quick.profile.output_dir);
+    let mut review_first = quick.clone();
+    review_first.direct_download = false;
+    assert!(!review_first.can_auto_queue(false, false));
+    let mut failed = quick.clone();
+    failed.state = DraftState::Failed;
+    assert!(!failed.can_auto_queue(false, false));
+}
+
 #[test]
 fn error_preview_is_bounded_without_breaking_unicode() {
     let error = "错误🙂".repeat(500);
