@@ -40,6 +40,12 @@ fn safe_templates_and_private_temp_are_planned() {
     let old: DownloadProfile = serde_json::from_str("{}").unwrap();
     assert_eq!(old.filename_template, "%(title).180B [%(id)s].%(ext)s");
     assert!(old.folder_template.is_none());
+    assert!(!old.archive_by_download_date);
+    let encoded = serde_json::to_vec(&DownloadProfile {
+        archive_by_download_date: true,
+        ..old
+    }).unwrap();
+    assert!(serde_json::from_slice::<DownloadProfile>(&encoded).unwrap().archive_by_download_date);
     assert!(plan.argv.iter().any(|a| a == "--no-restrict-filenames"));
     assert!(plan.argv.iter().any(|a| a == "--windows-filenames"));
 }
@@ -79,6 +85,53 @@ fn malicious_templates_fail_closed() {
         assert!(engine().download_plan(&request(), &p).is_err(), "{folder}");
     }
 }
+#[cfg(unix)]
+#[test]
+fn date_archive_uses_worker_date_and_preserves_existing_template() {
+    use std::{fs, os::unix::fs::{PermissionsExt, symlink}};
+    let root = std::env::temp_dir().join(format!("yt-date-archive-{}", std::process::id()));
+    fs::create_dir(&root).unwrap();
+    let output = fs::canonicalize(&root).unwrap().join("downloads");
+    let tool = root.join("tool");
+    fs::write(&tool, r#"#!/bin/sh
+for arg do
+    case "$arg" in home:*) out=${arg#home:};; esac
+done
+mkdir -p "$out/channel"
+printf video > "$out/channel/video.mp4"
+printf '__YT_ENGINE_ARTIFACT__"%s/channel/video.mp4"\n' "$out"
+"#).unwrap();
+    fs::set_permissions(&tool, fs::Permissions::from_mode(0o700)).unwrap();
+    let mut e = engine();
+    e.tools.yt_dlp = tool;
+    let p = DownloadProfile {
+        output_dir: Some(output.clone()),
+        folder_template: Some("channel".into()),
+        archive_by_download_date: true,
+        ..Default::default()
+    };
+    let plan = e.download_plan(&request(), &p).unwrap();
+    assert!(plan.argv.iter().any(|arg| arg == &format!("channel/{}", p.filename_template)));
+    assert!(!output.exists());
+    let before = chrono::Local::now().date_naive().to_string();
+    let result = e.download_with_profile(&request(), &p, &CancelToken::new(), None).unwrap();
+    let after = chrono::Local::now().date_naive().to_string();
+    let relative = result.artifacts[0].path.strip_prefix(&output).unwrap();
+    assert!(relative == PathBuf::from(before).join("channel/video.mp4")
+        || relative == PathBuf::from(after).join("channel/video.mp4"));
+
+    let unsafe_root = root.join("unsafe");
+    fs::create_dir(&unsafe_root).unwrap();
+    let today = chrono::Local::now().date_naive();
+    for date in [today, today.succ_opt().unwrap()] {
+        symlink(&output, unsafe_root.join(date.to_string())).unwrap();
+    }
+    let p = DownloadProfile { output_dir: Some(unsafe_root), ..p };
+    assert_eq!(e.download_with_profile(&request(), &p, &CancelToken::new(), None)
+        .unwrap_err().kind, ErrorKind::UnsafeArtifact);
+    fs::remove_dir_all(root).unwrap();
+}
+
 #[cfg(unix)]
 #[test]
 fn existing_skipped_file_is_not_a_success() {

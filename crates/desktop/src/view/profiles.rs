@@ -66,6 +66,7 @@ impl Downloader {
                                 .flex_1().min_w_0().overflow_hidden())
                             .child(controls::button("folder", tr("更改"), Tone::Secondary, cx).icon(IconName::FolderOpen)
                                 .on_click(cx.listener(|this, _, _, cx| this.choose_directory(cx)))), cx))
+                    .child(self.date_archive_control(cx))
                     .child(super::fields::row(
                         super::help::label("文件名模板", "支持 title/id/channel/uploader/extractor。文件名必须以 .%(ext)s 结尾；不允许绝对路径或越界。", "output-template"),
                         controls::input(&self.settings.filename_template, cx), cx))
@@ -98,6 +99,22 @@ impl Downloader {
                     .then(|| self.preset_switcher(cx)),
             )
             .child(content)
+    }
+    fn date_archive_control(&self, cx: &Context<Self>) -> Div {
+        let label = tr("按本地下载日期归档");
+        super::fields::row(
+            div().child(label.clone()),
+            div().v_flex().items_start().gap_2()
+                .child(gpui_kit::component::switch::Switch::new("date-archive")
+                    .accessibility_label(label)
+                    .checked(self.settings.profile.archive_by_download_date)
+                    .on_click(cx.listener(|this, checked: &bool, _, cx| {
+                        this.settings.profile.archive_by_download_date = *checked;
+                        cx.notify();
+                    })))
+                .child(muted(cx, tr("按实际开始下载时的本地日期创建子目录，例如 2026-11-27。子目录模板会放在日期目录内。"))),
+            cx,
+        )
     }
     fn network_controls(&self, cx: &Context<Self>) -> Div {
         super::design::section(cx, tr("网络与浏览器授权")).child(
@@ -253,9 +270,9 @@ impl Downloader {
                 cx,
             ));
             if cfg!(target_os = "macos") {
-                section = section.child(super::cookie_help::guidance(
-                    "cookie-privacy-settings",
-                    false,
+                section = section.child(super::fields::row(
+                    div().child(tr("Cookie 访问权限")),
+                    super::cookie_help::guidance("cookie-privacy-settings", false, cx),
                     cx,
                 ));
             }

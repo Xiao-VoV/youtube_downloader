@@ -9,19 +9,41 @@ pub(crate) struct Attempt {
     pub root: PathBuf,
     pub existing: HashSet<PathBuf>,
 }
+/// The chosen base directory may be an alias. Its generated date child must
+/// be a real directory so an existing symlink cannot redirect the archive.
+pub(crate) fn prepare_archive_directory(path: &Path) -> Result<()> {
+    let parent = path.parent().filter(|p| !p.as_os_str().is_empty());
+    if let Some(parent) = parent {
+        fs::create_dir_all(parent)
+            .map_err(|_| EngineError::new(ErrorKind::Io, "cannot create output directory"))?;
+    }
+    match fs::create_dir(path) {
+        Ok(()) => {}
+        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {}
+        Err(_) => return Err(EngineError::new(ErrorKind::Io, "cannot create date archive")),
+    }
+    let meta = fs::symlink_metadata(path).map_err(|_| unsafe_path())?;
+    if !meta.is_dir() || meta.file_type().is_symlink() {
+        return Err(unsafe_path());
+    }
+    Ok(())
+}
+
 pub(crate) fn prepare_attempt(request: &DownloadRequest) -> Result<Attempt> {
     fs::create_dir_all(&request.output_dir)
         .map_err(|_| EngineError::new(ErrorKind::Io, "cannot create output directory"))?;
     let root = fs::canonicalize(&request.output_dir)
         .map_err(|_| EngineError::new(ErrorKind::Io, "cannot resolve output directory"))?;
     let temp = root.join(".shiguang-tmp");
-    if temp.exists() {
-        let meta = fs::symlink_metadata(&temp).map_err(|_| unsafe_path())?;
-        if !meta.is_dir() || meta.file_type().is_symlink() {
-            return Err(unsafe_path());
-        }
-    } else {
-        private_dir(&temp)?;
+    // Multiple jobs may enter the same date folder at once.
+    match private_dir(&temp) {
+        Ok(()) => {}
+        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {}
+        Err(e) => return Err(attempt_directory_error(e)),
+    }
+    let meta = fs::symlink_metadata(&temp).map_err(|_| unsafe_path())?;
+    if !meta.is_dir() || meta.file_type().is_symlink() {
+        return Err(unsafe_path());
     }
     if request.attempt_id.is_empty()
         || !request
@@ -34,24 +56,25 @@ pub(crate) fn prepare_attempt(request: &DownloadRequest) -> Result<Attempt> {
             "invalid attempt id",
         ));
     }
-    private_dir(&temp.join(&request.attempt_id))?;
+    private_dir(&temp.join(&request.attempt_id)).map_err(attempt_directory_error)?;
     let mut existing = HashSet::new();
     snapshot(&root, &root, &mut existing, 0)?;
     Ok(Attempt { root, existing })
 }
-fn private_dir(path: &Path) -> Result<()> {
+fn private_dir(path: &Path) -> std::io::Result<()> {
     let mut builder = fs::DirBuilder::new();
     #[cfg(unix)]
     {
         use std::os::unix::fs::DirBuilderExt;
         builder.mode(0o700);
     }
-    builder.create(path).map_err(|_| {
-        EngineError::new(
-            ErrorKind::InvalidRequest,
-            "private attempt exists or cannot be created; use new attempt_id",
-        )
-    })
+    builder.create(path)
+}
+fn attempt_directory_error(error: std::io::Error) -> EngineError {
+    EngineError::new(
+        ErrorKind::InvalidRequest,
+        format!("cannot create private attempt directory: {error}"),
+    )
 }
 fn unsafe_path() -> EngineError {
     EngineError::new(

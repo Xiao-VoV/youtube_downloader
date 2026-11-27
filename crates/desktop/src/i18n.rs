@@ -294,14 +294,19 @@ const CATALOG: &[(&str, &str)] = &[
     ("不使用", "None"),
     ("浏览器 Cookie", "Browser cookies"),
     ("打开隐私设置", "Open privacy settings"),
+    ("Cookie 访问权限", "Cookie access"),
+    (
+        "「自动化」权限不能替代完全磁盘访问权限。仅向信任的应用授权。",
+        "Automation permission does not replace Full Disk Access. Grant access only to apps you trust.",
+    ),
     ("无法找到或访问浏览器 Cookie 数据库", "Cannot find or access the browser cookie database"),
     (
         "请先核对浏览器 Profile 路径；Chrome 可在 chrome://version 查看 Profile Path。此错误也可能由 macOS 隐私权限限制引起，并不一定是权限不足。",
         "Check the browser profile path first; Chrome shows Profile Path at chrome://version. macOS privacy restrictions can also cause this error; it does not necessarily mean permission is missing.",
     ),
     (
-        "macOS 可能限制读取浏览器 Cookie。若路径正确但仍无法访问，请在系统设置 → 隐私与安全性 → 完全磁盘访问权限中添加已安装的 YTDer，授权后完全退出并重新启动。自动化 → Chrome 不是此权限。仅向信任的应用授予此权限。",
-        "macOS may restrict browser cookie access. If the path is correct but access still fails, add the installed YTDer in System Settings → Privacy & Security → Full Disk Access, then quit and reopen it. Automation → Chrome is a different permission. Grant this access only to trusted apps.",
+        "无法读取 Cookie 时，可在「隐私与安全性 → 完全磁盘访问权限」中为 YTDer 授权，然后退出并重新打开应用。",
+        "If cookies cannot be read, grant YTDer access in Privacy & Security → Full Disk Access, then quit and reopen the app.",
     ),
     (
         "仅显式选择后读取浏览器Cookie；解析和下载共享选择，可能触发系统授权。",
@@ -364,6 +369,13 @@ const CATALOG: &[(&str, &str)] = &[
     ("视频", "Video"),
     ("输出", "Output"),
     ("保存到", "Save to"),
+    ("按本地下载日期归档", "Organize by local download date"),
+    ("日期归档", "Date folder"),
+    ("以实际开始下载时的本地日期为准", "Uses the local date when the download starts"),
+    (
+        "按实际开始下载时的本地日期创建子目录，例如 2026-11-27。子目录模板会放在日期目录内。",
+        "Creates a folder such as 2026-11-27 when the download starts. Folder templates go inside that date folder.",
+    ),
     ("代理", "Proxy"),
     ("已启用（地址隐藏）", "Enabled (address hidden)"),
     ("直连", "Direct connection"),

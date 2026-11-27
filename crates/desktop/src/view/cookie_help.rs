@@ -17,16 +17,17 @@ pub(super) fn database_access_failure(error: &str) -> bool {
 }
 
 pub(super) fn guidance(id: impl Into<ElementId>, failed: bool, cx: &Context<Downloader>) -> Div {
-    let mut panel = div().v_flex().gap_2();
+    let mut panel = div().v_flex().items_start().gap_2();
     if failed {
         panel = panel
             .child(muted(cx, tr("无法找到或访问浏览器 Cookie 数据库")))
             .child(muted(cx, tr("请先核对浏览器 Profile 路径；Chrome 可在 chrome://version 查看 Profile Path。此错误也可能由 macOS 隐私权限限制引起，并不一定是权限不足。")));
     }
     panel
-        .child(muted(cx, tr("macOS 可能限制读取浏览器 Cookie。若路径正确但仍无法访问，请在系统设置 → 隐私与安全性 → 完全磁盘访问权限中添加已安装的 YTDer，授权后完全退出并重新启动。自动化 → Chrome 不是此权限。仅向信任的应用授予此权限。")))
+        .child(muted(cx, tr("无法读取 Cookie 时，可在「隐私与安全性 → 完全磁盘访问权限」中为 YTDer 授权，然后退出并重新打开应用。")))
+        .children(failed.then(|| muted(cx, tr("「自动化」权限不能替代完全磁盘访问权限。仅向信任的应用授权。"))))
         .child(
-            controls::button(id, tr("打开隐私设置"), Tone::Quiet, cx)
+            controls::button(id, tr("打开隐私设置"), Tone::Secondary, cx)
                 .on_click(|_, _, cx| {
                     cx.stop_propagation();
                     cx.open_url("x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles");
