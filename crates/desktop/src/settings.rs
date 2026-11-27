@@ -37,10 +37,7 @@ pub(crate) struct Settings {
 impl Settings {
     pub fn new(window: &mut Window, cx: &mut Context<crate::app::Downloader>) -> Self {
         let store = load().unwrap_or_default();
-        let active = store
-            .presets
-            .iter()
-            .find(|p| Some(&p.id) == store.active_preset_id.as_ref());
+        let active = active_preset_index(&store).map(|index| &store.presets[index]);
         let profile = active.map(|p| p.profile.clone()).unwrap_or_default();
         let name = active.map(|p| p.name.as_str()).unwrap_or("默认配置");
         let mut input = |text: &str, cx: &mut Context<crate::app::Downloader>| {
@@ -89,6 +86,23 @@ impl Settings {
         profile
     }
 }
+pub(crate) fn active_preset_index(store: &ProfileStore) -> Option<usize> {
+    let id = store.active_preset_id.as_ref()?;
+    store.presets.iter().position(|preset| &preset.id == id)
+}
+
+// Unknown IDs cannot alter either the current selection or its persisted copy.
+// On a write failure, keep the user's selection usable in the current session.
+pub(crate) fn select_preset(
+    store: &mut ProfileStore,
+    id: &str,
+    persist: impl FnOnce(&ProfileStore) -> std::result::Result<(), String>,
+) -> Option<(Preset, std::result::Result<(), String>)> {
+    let preset = store.presets.iter().find(|preset| preset.id == id)?.clone();
+    store.active_preset_id = Some(preset.id.clone());
+    Some((preset, persist(store)))
+}
+
 fn path() -> Option<PathBuf> {
     std::env::var_os("HOME")
         .map(|home| PathBuf::from(home).join("Library/Application Support/Shiguang/profiles.json"))
@@ -147,7 +161,7 @@ fn encode_store(store: &ProfileStore) -> std::result::Result<Vec<u8>, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{encode_store, load_at, save_at};
+    use super::{active_preset_index, encode_store, load_at, save_at, select_preset};
     use youtube_engine::{DownloadProfile, Preset, ProfileStore};
     fn store(proxy: &str) -> ProfileStore {
         ProfileStore {
@@ -168,7 +182,7 @@ mod tests {
         assert!(encode_store(&store("socks5://user@localhost:1080")).is_err());
     }
     #[test]
-    fn persisted_presets_reload_and_rejected_save_preserves_existing() {
+    fn selected_preset_survives_reload_without_saving_profile_edits() {
         let root = std::env::temp_dir().join(format!(
             "shiguang-presets-{}-{}",
             std::process::id(),
@@ -181,18 +195,34 @@ mod tests {
         let mut original = store("http://localhost:8080");
         let mut second = original.presets[0].clone();
         second.id = "second".into();
-        second.name = "音频".into();
+        // Equal display names deliberately differ only by ID and recipe.
         second.profile.mode = youtube_engine::Mode::MP3;
+        second.profile.filename_template = "%(id)s.%(ext)s".into();
         original.presets.push(second);
-        original.active_preset_id = Some("second".into());
         save_at(&path, &original).unwrap();
+        let mut current = load_at(&path).unwrap();
+        assert_eq!(active_preset_index(&current), Some(0));
+        let (mut selected, result) =
+            select_preset(&mut current, "second", |store| save_at(&path, store)).unwrap();
+        result.unwrap();
+        assert_eq!(selected.profile.mode, youtube_engine::Mode::MP3);
+        selected.profile.filename_template.clear(); // An unsaved editor change.
         let loaded = load_at(&path).unwrap();
         assert_eq!(loaded.presets.len(), 2);
         assert_eq!(loaded.active_preset_id.as_deref(), Some("second"));
-        assert_eq!(loaded.presets[1].profile.mode, youtube_engine::Mode::MP3);
+        let restored = &loaded.presets[active_preset_index(&loaded).unwrap()];
+        assert_eq!(restored.profile.mode, youtube_engine::Mode::MP3);
+        assert_eq!(restored.profile.filename_template, "%(id)s.%(ext)s");
+        assert!(select_preset(&mut current, "missing", |_| panic!("unexpected write")).is_none());
+        assert_eq!(active_preset_index(&current), Some(1));
         let before = std::fs::read(&path).unwrap();
         assert!(save_at(&path, &store("http://user:secret@localhost:8080")).is_err());
         assert_eq!(before, std::fs::read(&path).unwrap());
+        let (_, failed) =
+            select_preset(&mut current, "local", |_| Err("read-only".into())).unwrap();
+        assert_eq!(failed.unwrap_err(), "read-only");
+        assert_eq!(active_preset_index(&current), Some(0));
+        assert_eq!(active_preset_index(&load_at(&path).unwrap()), Some(1));
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;

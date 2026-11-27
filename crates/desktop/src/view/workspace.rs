@@ -335,12 +335,17 @@ impl Downloader {
             ),
             ("Cookie", cookies),
             (
+                "日期归档",
+                tr("以实际开始下载时的本地日期为准"),
+            ),
+            (
                 "高级参数",
                 format!("{} {}", profile.extra_args.len(), tr("个参数项")),
             ),
         ] {
             if (label == "代理" && profile.proxy.is_none())
                 || (label == "Cookie" && profile.cookies_browser.is_none())
+                || (label == "日期归档" && !profile.archive_by_download_date)
                 || (label == "高级参数" && profile.extra_args.is_empty())
             {
                 continue;

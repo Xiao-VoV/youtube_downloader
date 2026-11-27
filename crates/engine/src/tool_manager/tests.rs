@@ -29,10 +29,44 @@ fn install_only_activate_list_and_safe_remove() {
             .count(),
         1
     );
-    manager.remove_version(&one.version, &[]).unwrap();
+    assert!(manager
+        .remove_version(&one.version, std::slice::from_ref(&first))
+        .is_err());
+    assert!(first.exists());
+    assert_eq!(
+        manager.marker().unwrap().unwrap().previous,
+        Some(one.version.clone())
+    );
+
+    // A vanished snapshot from another tool installation must not prevent
+    // deleting the unused rollback version.
+    let stale_snapshot = f.0.join("stale-cellar/yt-dlp");
+    manager
+        .remove_version(&one.version, &[stale_snapshot])
+        .unwrap();
     assert!(!first.exists());
     assert!(second.exists());
-    assert!(manager.marker().unwrap().unwrap().previous.is_none());
+    let marker = manager.marker().unwrap().unwrap();
+    assert_eq!(marker.active, two.version);
+    assert!(marker.previous.is_none());
+    assert_eq!(
+        manager.revert().unwrap_err(),
+        failure("no previous version")
+    );
+}
+#[cfg(unix)]
+#[test]
+fn removal_protects_aliases_to_installed_versions() {
+    use std::os::unix::fs::symlink;
+
+    let f = Fixture::new();
+    let manager = ToolManager::new(f.0.clone());
+    let release = release_info("2026.10.26").unwrap();
+    let path = manager.install_only_with(&release, &fake()).unwrap();
+    let alias = f.0.join("selected-yt-dlp");
+    symlink(&path, &alias).unwrap();
+    assert!(manager.remove_version(&release.version, &[alias]).is_err());
+    assert!(path.exists());
 }
 #[test]
 fn removal_rejects_unknown_files_and_nonexecutables() {

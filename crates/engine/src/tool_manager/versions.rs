@@ -82,9 +82,23 @@ impl ToolManager {
             return Err(failure("cannot remove active managed version"));
         }
         for protected in protected_paths {
-            let protected = fs::canonicalize(protected)
-                .map_err(|_| failure("cannot verify protected tool path"))?;
-            if protected == path {
+            // The snapshots are normally canonical. Resolve aliases too, but a
+            // stale path (for example after a Homebrew upgrade) cannot refer to
+            // this existing binary and must not block unrelated removals.
+            let matches_version = if protected == &path {
+                true
+            } else {
+                match fs::canonicalize(protected) {
+                    Ok(resolved) => resolved == path,
+                    Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
+                    Err(error) => {
+                        return Err(failure(&format!(
+                            "cannot verify protected tool path: {error}"
+                        )));
+                    }
+                }
+            };
+            if matches_version {
                 return Err(failure(
                     "version is protected by an active task or selection",
                 ));
@@ -101,10 +115,11 @@ impl ToolManager {
             marker.previous = None;
             self.write_marker(&marker)?;
         }
-        fs::remove_file(self.binary(version))
-            .map_err(|_| failure("cannot remove version executable"))?;
-        fs::remove_dir(self.binary(version).parent().unwrap())
-            .map_err(|_| failure("cannot remove nonempty version directory"))?;
+        let binary = self.binary(version);
+        fs::remove_file(&binary)
+            .map_err(|error| failure(&format!("cannot remove version executable: {error}")))?;
+        fs::remove_dir(binary.parent().unwrap())
+            .map_err(|error| failure(&format!("cannot remove version directory: {error}")))?;
         Ok(())
     }
 }

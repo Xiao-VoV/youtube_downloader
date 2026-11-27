@@ -124,8 +124,16 @@ impl Engine {
         request: &DownloadRequest,
         profile: &DownloadProfile,
     ) -> Result<CommandPlan> {
+        let effective = effective_download_request(request, profile, chrono::Local::now().date_naive());
+        self.plan_effective_download(&effective, profile)
+    }
+    pub(crate) fn plan_effective_download(
+        &self,
+        request: &DownloadRequest,
+        profile: &DownloadProfile,
+    ) -> Result<CommandPlan> {
         let mut plan = self.baseline_plan(profile)?;
-        let attempt = planned_attempt(request, profile)?;
+        let attempt = planned_attempt(request)?;
         let selector = video_selector(request, profile)?;
         plan.argv.extend(
             [
@@ -190,10 +198,51 @@ impl Engine {
         Ok(plan)
     }
 }
-pub(crate) fn planned_attempt(
+pub(crate) fn effective_download_request(
     request: &DownloadRequest,
     profile: &DownloadProfile,
-) -> Result<PathBuf> {
+    local_date: chrono::NaiveDate,
+) -> DownloadRequest {
+    let mut effective = request.clone();
+    if let Some(output_dir) = &profile.output_dir {
+        effective.output_dir = output_dir.clone();
+    }
+    if profile.archive_by_download_date {
+        effective.output_dir.push(local_date.format("%Y-%m-%d").to_string());
+    }
+    effective
+}
+
+#[cfg(test)]
+mod archive_tests {
+    use super::{DownloadProfile, DownloadRequest, PathBuf, effective_download_request};
+    use chrono::NaiveDate;
+
+    #[test]
+    fn queue_snapshot_is_unchanged_when_execution_date_changes() {
+        let request = DownloadRequest {
+            url: "https://example.com/video".into(),
+            mode: crate::Mode::Video,
+            output_dir: PathBuf::from("downloads"),
+            format_id: None,
+            task_id: "task".into(),
+            attempt_id: "attempt".into(),
+        };
+        let profile = DownloadProfile {
+            archive_by_download_date: true,
+            ..Default::default()
+        };
+        for day in [27, 28] {
+            let date = NaiveDate::from_ymd_opt(2026, 11, day).unwrap();
+            let effective = effective_download_request(&request, &profile, date);
+            assert_eq!(effective.output_dir, request.output_dir.join(date.to_string()));
+            assert_eq!(effective.attempt_id, request.attempt_id);
+        }
+        assert_eq!(request.output_dir, PathBuf::from("downloads"));
+    }
+}
+
+fn planned_attempt(request: &DownloadRequest) -> Result<PathBuf> {
     if request.attempt_id.is_empty()
         || !request
             .attempt_id
@@ -202,7 +251,7 @@ pub(crate) fn planned_attempt(
     {
         return Err(invalid("invalid attempt_id"));
     }
-    let root = profile.output_dir.as_ref().unwrap_or(&request.output_dir);
+    let root = &request.output_dir;
     let root = if root.is_absolute() {
         root.clone()
     } else {

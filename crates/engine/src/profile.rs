@@ -44,6 +44,8 @@ pub struct DownloadProfile {
     pub output_dir: Option<PathBuf>,
     pub filename_template: String,
     pub folder_template: Option<String>,
+    /// Group downloads by the system-local date when execution starts.
+    pub archive_by_download_date: bool,
     /// Tokenized argv, not a shell string. Unknown flags fail closed.
     pub extra_args: Vec<String>,
 }
@@ -60,6 +62,7 @@ impl Default for DownloadProfile {
             output_dir: None,
             filename_template: "%(title).180B [%(id)s].%(ext)s".into(),
             folder_template: None,
+            archive_by_download_date: false,
             extra_args: Vec::new(),
         }
     }

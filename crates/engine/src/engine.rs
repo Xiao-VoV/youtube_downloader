@@ -91,10 +91,13 @@ impl Engine {
         cancel: &CancelToken,
         events: Option<&EventSender>,
     ) -> Result<DownloadResult> {
-        let plan = self.download_plan(request, profile)?;
-        let mut effective = request.clone();
-        if let Some(root) = &profile.output_dir {
-            effective.output_dir = root.clone();
+        // Sample the local date in the worker, not in the editor or while queued.
+        let effective = crate::plan::effective_download_request(
+            request, profile, chrono::Local::now().date_naive(),
+        );
+        let plan = self.plan_effective_download(&effective, profile)?;
+        if profile.archive_by_download_date {
+            crate::artifacts::prepare_archive_directory(&effective.output_dir)?;
         }
         let attempt = crate::artifacts::prepare_attempt(&effective)?;
         let cmd = plan.command();

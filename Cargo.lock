@@ -8186,6 +8186,8 @@ dependencies = [
  "async-channel",
  "chrono",
  "gpui-kit",
+ "objc2-app-kit 0.3.2",
+ "raw-window-handle",
  "rusqlite",
  "serde",
  "serde_json",
@@ -8197,6 +8199,7 @@ dependencies = [
 name = "youtube-engine"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "libc",
  "reqwest",
  "serde",

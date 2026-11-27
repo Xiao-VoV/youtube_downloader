@@ -8,26 +8,12 @@ use crate::{
 use gpui_kit::*;
 use youtube_engine::*;
 impl Downloader {
-    pub(crate) fn refresh_preset_select(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let names = self
-            .settings
-            .store
-            .presets
-            .iter()
-            .map(|p| crate::preset_option::PresetOption {
-                id: p.id.clone(),
-                name: p.name.clone(),
-            })
-            .collect::<Vec<_>>();
-        self.preset_select.update(cx, |s, cx| {
-            s.set_items(
-                gpui_kit::component::select::SearchableVec::new(names),
-                window,
-                cx,
-            )
-        });
-    }
-    pub(crate) fn add_draft(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn add_draft(
+        &mut self,
+        direct_download: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let url = match normalize_url(self.url.read(cx).value().as_ref()) {
             Ok(url) => url,
             Err(e) => {
@@ -68,8 +54,21 @@ impl Downloader {
             profile,
             media: None,
             state: DraftState::Waiting,
+            direct_download,
             error: None,
         };
+        if direct_download {
+            let Some(request) = draft.download_request() else {
+                self.status = crate::i18n::tr("请先在下载配置中选择保存目录。");
+                cx.notify();
+                return;
+            };
+            if let Err(error) = self.engine.download_plan(&request, &draft.profile) {
+                self.status = error.to_string();
+                cx.notify();
+                return;
+            }
+        }
         if let Err(e) = self.drafts.upsert(draft) {
             self.status = e;
             cx.notify();
@@ -80,7 +79,7 @@ impl Downloader {
         cx.notify();
     }
     pub(crate) fn start_next_probe(&mut self, cx: &mut Context<Self>) {
-        if self.shutting_down || self.probe_job.is_some() {
+        if self.shutting_down || self.tools.removing || self.probe_job.is_some() {
             return;
         }
         let Some(mut draft) = self
@@ -120,6 +119,8 @@ impl Downloader {
         profile.output_dir = self.output.clone();
         let stale = crate::drafts::requires_reprobe(&draft.profile, &profile);
         draft.profile = profile;
+        // Editing a task moves it into the explicit review flow.
+        draft.direct_download = false;
         if stale {
             if let Some((active, cancel)) = &self.probe_job {
                 if active == &id {
@@ -141,37 +142,76 @@ impl Downloader {
         }
         true
     }
+    /// Only a just-completed probe can auto-queue. Recovery and editor previews
+    /// do not call this path; the original profile snapshot drives the request.
+    pub(crate) fn queue_direct_download(&mut self, id: &str) {
+        let Some(mut draft) = self.drafts.entries.iter().find(|d| d.id == id).cloned() else {
+            return;
+        };
+        if !draft.can_auto_queue(
+            self.selected_draft.as_deref() == Some(id),
+            self.shutting_down,
+        ) {
+            return;
+        }
+        let duplicate = self
+            .history
+            .entries
+            .iter()
+            .any(|record| crate::duplicates::same_video(&record.url, &draft.url))
+            || self.drafts.entries.iter().any(|entry| {
+                entry.state == DraftState::Queued
+                    && crate::duplicates::same_video(&entry.url, &draft.url)
+            })
+            || self
+                .queued
+                .iter()
+                .any(|(request, _)| crate::duplicates::same_video(&request.url, &draft.url))
+            || self
+                .running
+                .values()
+                .any(|task| crate::duplicates::same_video(&task.record.url, &draft.url));
+        if duplicate {
+            self.status =
+                crate::i18n::tr("已有相同视频的任务或历史记录，请查看解析结果后确认下载。");
+            return;
+        }
+        let Some(request) = draft.download_request() else {
+            self.status = crate::i18n::tr("请先在下载配置中选择保存目录。");
+            return;
+        };
+        if let Err(error) = self.engine.download_plan(&request, &draft.profile) {
+            self.status = error.to_string();
+            return;
+        }
+        draft.state = DraftState::Queued;
+        let profile = draft.profile.clone();
+        if let Err(error) = self.drafts.upsert(draft) {
+            self.status = error;
+            return;
+        }
+        self.queued.push_back((request, profile));
+        self.status = crate::i18n::tr("已加入下载队列");
+    }
     pub(crate) fn resume_queued(&mut self, id: &str, cx: &mut Context<Self>) {
         if self.running.contains_key(id) || self.queued.iter().any(|(r, _)| r.task_id == id) {
             return;
         }
-        if let Some(d) = self.drafts.entries.iter().find(|d| d.id == id).cloned() {
-            if let Some(output_dir) = d.profile.output_dir.clone() {
-                self.queued.push_back((
-                    DownloadRequest {
-                        url: d.url,
-                        mode: d.profile.mode,
-                        output_dir,
-                        format_id: None,
-                        task_id: d.id.clone(),
-                        attempt_id: format!(
-                            "{}-{}",
-                            d.id,
-                            std::time::SystemTime::now()
-                                .duration_since(std::time::UNIX_EPOCH)
-                                .unwrap_or_default()
-                                .as_nanos()
-                        ),
-                    },
-                    d.profile,
-                ));
+        if let Some(draft) = self
+            .drafts
+            .entries
+            .iter()
+            .find(|d| d.id == id && d.state == DraftState::Queued)
+        {
+            if let Some(request) = draft.download_request() {
+                self.queued.push_back((request, draft.profile.clone()));
                 self.start_queued(cx);
                 cx.notify();
             }
         }
     }
     pub(crate) fn start_queued(&mut self, cx: &mut Context<Self>) {
-        if self.shutting_down {
+        if self.shutting_down || self.tools.removing {
             return;
         }
         while self.running.len() < 3 {

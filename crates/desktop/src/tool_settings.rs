@@ -10,6 +10,7 @@ pub(crate) struct ToolSettings {
     pub deno: Entity<InputState>,
     pub release: Option<ReleaseInfo>,
     pub busy: bool,
+    pub removing: bool,
     pub status: String,
     pub effective: Option<ToolPaths>,
     pub versions: Vec<ManagedVersion>,
@@ -55,6 +56,7 @@ impl ToolSettings {
             deno: input("deno", found.deno, cx),
             release: None,
             busy: false,
+            removing: false,
             status: tr("自定义路径优先，其次托管版本，最后系统 PATH。"),
             effective: None,
             versions: ToolManager::default_root()
@@ -123,15 +125,52 @@ impl Downloader {
         self.tools.status = tr("已自动探测并填入系统优先路径。");
         cx.notify();
     }
+    pub(crate) fn managed_removal_block(&self, version: &ManagedVersion) -> Option<String> {
+        let selected = self
+            .tools
+            .effective
+            .as_ref()
+            .is_some_and(|paths| paths.yt_dlp == version.path);
+        if selected || version.active {
+            Some(tr("当前使用的版本不能删除"))
+        } else if self
+            .running
+            .values()
+            .any(|task| task.tool_path == version.path)
+        {
+            Some(tr("运行中的下载正在使用此版本"))
+        } else if self.busy || self.probe_job.is_some() {
+            // A probe keeps the Engine it started with, which may no longer
+            // match the currently effective version after a tool switch.
+            Some(tr("请等待当前解析完成后再删除版本"))
+        } else {
+            None
+        }
+    }
     pub(crate) fn manage_tools(&mut self, operation: Operation, cx: &mut Context<Self>) {
         let checking = matches!(operation, Operation::Check);
         if self.tools.busy || (checking && self.tools.checking) {
             return;
         }
+        let removing = matches!(operation, Operation::Remove(_));
+        if let Operation::Remove(version) = &operation {
+            let Some(installed) = self.tools.versions.iter().find(|v| &v.version == version) else {
+                return;
+            };
+            if let Some(reason) = self.managed_removal_block(installed) {
+                self.tools.status = reason;
+                cx.notify();
+                return;
+            }
+        }
         let mut custom = self.tools.paths(cx);
         let release = self.tools.release.clone();
-        let mut protected: Vec<PathBuf> =
-            self.running.values().map(|t| t.tool_path.clone()).collect();
+        let mut protected: Vec<PathBuf> = self
+            .running
+            .values()
+            .map(|t| t.tool_path.clone())
+            .filter(|path| !path.as_os_str().is_empty())
+            .collect();
         if let Some(paths) = &self.tools.effective {
             protected.push(paths.yt_dlp.clone());
         }
@@ -142,6 +181,7 @@ impl Downloader {
             self.tools.checking = true;
         } else {
             self.tools.busy = true;
+            self.tools.removing = removing;
         }
         self.tools.status = tr("正在处理工具请求…");
         let (tx, rx) = async_channel::bounded(1);
@@ -171,7 +211,9 @@ impl Downloader {
                         out.status = format!("{}: {}", tr("已安装，尚未切换"), path.display());
                     }
                     Operation::Remove(version) => {
-                        manager.remove_version(version, &protected)?;
+                        manager
+                            .remove_version(version, &protected)
+                            .map_err(|error| format!("{}: {error}", tr("托管版本删除失败")))?;
                         out.status = tr("托管版本已删除");
                     }
                     Operation::Activate(version) => {

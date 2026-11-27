@@ -42,6 +42,7 @@ impl Downloader {
                 .child(
                     div()
                         .h_flex()
+                        .flex_wrap()
                         .items_center()
                         .justify_end()
                         .gap_3()
@@ -57,12 +58,29 @@ impl Downloader {
                             controls::button(
                                 "add-draft",
                                 crate::i18n::tr("解析链接"),
-                                Tone::Primary,
+                                Tone::Secondary,
                                 cx,
                             )
                             .icon(IconName::Search)
                             .on_click(
-                                cx.listener(|this, _, window, cx| this.add_draft(window, cx)),
+                                cx.listener(|this, _, window, cx| {
+                                    this.add_draft(false, window, cx)
+                                }),
+                            ),
+                        )
+                        .child(
+                            controls::button(
+                                "direct-download",
+                                crate::i18n::tr("直接下载"),
+                                Tone::Primary,
+                                cx,
+                            )
+                            .icon(IconName::ArrowDown)
+                            .tooltip(crate::i18n::tr(
+                                "使用所选配置，解析成功后自动加入下载队列。",
+                            ))
+                            .on_click(
+                                cx.listener(|this, _, window, cx| this.add_draft(true, window, cx)),
                             ),
                         ),
                 ),
@@ -99,6 +117,8 @@ impl Downloader {
             let retry_id = id.clone();
             let remove_id = id.clone();
             let review_id = id.clone();
+            let can_open =
+                !d.direct_download || !matches!(d.state, DraftState::Waiting | DraftState::Probing);
             let mut info = div()
                 .v_flex()
                 .flex_1()
@@ -110,11 +130,20 @@ impl Downloader {
                     cx,
                 ))
                 .child(media::metadata(d.media.as_ref(), &d.profile, cx))
-                .child(controls::badge(
-                    draft_state(d.state),
-                    d.state == DraftState::Ready,
-                    cx,
-                ));
+                .child(
+                    div()
+                        .h_flex()
+                        .gap_2()
+                        .child(controls::badge(
+                            draft_state(d.state),
+                            d.state == DraftState::Ready,
+                            cx,
+                        ))
+                        .children(
+                            d.direct_download
+                                .then(|| controls::badge(crate::i18n::tr("直接下载"), false, cx)),
+                        ),
+                );
             if let Some(error) = &d.error {
                 if cfg!(target_os = "macos")
                     && d.profile.cookies_browser.is_some()
@@ -211,9 +240,11 @@ impl Downloader {
                             this.remove_draft(&remove_id, cx);
                         })),
                     )
-                    .on_click(
-                        cx.listener(move |this, _, window, cx| this.open_draft(&id, window, cx)),
-                    ),
+                    .on_click(cx.listener(move |this, _, window, cx| {
+                        if can_open {
+                            this.open_draft(&id, window, cx);
+                        }
+                    })),
             );
         }
         if count == 0 {
